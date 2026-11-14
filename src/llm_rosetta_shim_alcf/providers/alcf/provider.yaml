@@ -1,6 +1,14 @@
-# Vendor manifest: the credential the three clusters share.  A leaf inherits
-# every field here and may override any of them; a relative ``token_command``
-# argument resolves against this file's directory.
+# Vendor manifest: what the three clusters share.  A leaf inherits every field
+# here and may override any of them; a relative ``token_command`` argument
+# resolves against this file's directory.
+#
+# ``logo``, ``group`` and ``group_label`` describe the vendor, not a cluster:
+# without ``group`` the admin would derive one from each shim name
+# (``alcf_metis``) and show three top-level groups instead of one.
+logo: https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-alcf@main/assets/alcf.svg
+group: alcf
+group_label: ALCF
+
 connection:
   api_key_env: ALCF_API_KEY
   # The Globus exchange ships with the shim.

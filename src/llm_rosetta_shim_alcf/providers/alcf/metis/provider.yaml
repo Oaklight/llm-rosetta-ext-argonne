@@ -1,11 +1,9 @@
 name: alcf_metis--chat_completions
 model_type: llm
 format: chat_completions
-# The three ALCF clusters share one admin top level (`group`); `display_name`
-# is this shim's own label inside it, rendered as "metis · chat_completions".
-group: alcf
+# `display_name` is this shim's label inside the vendor's group (inherited from
+# ../../provider.yaml), rendered as "metis · chat_completions".
 display_name: metis
-logo: https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-alcf@main/assets/alcf.svg
 
 connection:
   base_url: https://inference-api.alcf.anl.gov/resource_server/metis/api/v1
