@@ -122,9 +122,10 @@ General, or the release step fails.
 ## Requirements
 
 - Python >= 3.10
-- `llm-rosetta >= 0.14.0.dev28` (the plugin shim loader, the vendor manifest and
-  `connection.token_command`; an older core reads the manifest as a shim and the
-  provider would start with no credential)
+- `llm-rosetta >= 0.14.0.dev31` (the plugin shim loader, the vendor manifest —
+  which also carries the vendor's `logo` / `group` / `group_label` — and
+  `connection.token_command`; dev30 and earlier refuse a manifest that declares
+  identity, which would take the whole package down with it)
 - No credential in the environment: the shipped exchange mints the token from
   `~/.globus` (or `--token-file` / `--tokens-dir`)
 
