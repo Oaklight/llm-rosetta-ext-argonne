@@ -17,9 +17,12 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
 ]
 # The vendor manifest (``providers/alcf/provider.yaml``) needs the manifest
-# loader; an older core reads the file as a shim and either rejects it or
-# drops the credential, so the floor is what makes the shipped exchange run.
-dependencies = ["llm-rosetta>=0.14.0.dev28"]
+# loader and, since it carries ``logo`` / ``group`` / ``group_label``, a core
+# that reads identity from a manifest: dev30 and everything before it refuses
+# that file ("a vendor manifest may declare only a 'connection:' block"), which
+# would take the whole package down with it.  A final release sorts above its
+# dev releases, so 0.14.0 satisfies this floor too.
+dependencies = ["llm-rosetta>=0.14.0.dev31"]
 
 [project.urls]
 Repository = "https://github.com/Oaklight/llm-rosetta-shim-alcf"

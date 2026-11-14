@@ -54,20 +54,19 @@ def test_registers_alcf_shim(_registered, name):
 
 
 @pytest.mark.parametrize("cluster", _CLUSTERS)
-def test_provider_yaml_declares_canonical_name_and_grouping(cluster):
-    """``group`` is read from the YAML on purpose: the parent surfaces it on
-    ``ProviderShim`` only in current releases, so the contract is pinned where
-    the plugin actually declares it."""
+def test_a_leaf_declares_only_its_own_facts(cluster):
+    """The vendor's identity lives in the manifest; a leaf keeps its row label."""
     cfg = _provider_config(cluster)
     assert cfg["name"] == f"alcf_{cluster}--chat_completions"
     assert cfg["model_type"] == "llm"
     assert cfg["format"] == "chat_completions"
-    assert cfg["group"] == _GROUP
     assert cfg["display_name"] == cluster
+    assert {"group", "group_label", "logo"}.isdisjoint(cfg)
 
 
-def test_alcf_shims_declare_one_group_and_distinct_labels(_registered):
-    assert {_provider_config(c)["group"] for c in _CLUSTERS} == {_GROUP}
+def test_the_manifest_gives_the_three_clusters_one_group(_registered):
+    assert {get_shim(name).group for name in _SHIMS} == {_GROUP}
+    assert {get_shim(name).group_label for name in _SHIMS} == {"ALCF"}
     assert {get_shim(name).display_name for name in _SHIMS} == _DISPLAY_NAMES
 
 
