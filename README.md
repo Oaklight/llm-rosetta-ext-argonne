@@ -36,20 +36,42 @@ The pre-rename spellings (`alcf--metis`, `alcf--minerva`, `alcf--sophia`) no
 longer resolve; use the canonical names above.
 
 Model ID slugs come from a shared `model_list_transform` (framework-aware filtering).
-The Globus OAuth exchange ships **with this package**. The vendor manifest
-`providers/alcf/provider.yaml` declares the credential once for all three
-clusters — `connection.api_key_env: ALCF_API_KEY` and
-`connection.token_command: [python3, mint_token.py]`, resolved against the manifest's
-own directory — and every leaf inherits it. Log in once, and the gateway runs the
-exchange at startup, on the declared interval and after an upstream 401. A
-provider that names its own `token_command` still wins.
+
+## Credential
+
+The Globus grant *is* this vendor's credential, and the package ships the
+exchange that owns it: `providers/alcf/auth.py`, beside the vendor manifest, so
+all three clusters authenticate alike. There is no static key and no argv: a
+shim ships one form of its credential exchange.
+
+The first sign-in is interactive and happens once per provider:
 
 ```bash
-python3 -m llm_rosetta_shim_alcf.providers.alcf.token --login   # once, per user
+llm-rosetta credential login --provider "<the provider's name>"
 ```
 
-The same module takes `--status` for the token's expiry and `--probe metis` to
-check it against a cluster.
+That prints a Globus URL and takes the code the page shows; from then on the
+rotating refresh token keeps every cluster served, at startup, on the gateway's
+refresh interval and after an upstream 401.
+
+The grant is stored where the vendor's own tooling keeps it —
+`~/.globus/app/<client-id>/inference_app/tokens.json` — and written back in that
+layout, so:
+
+- an installation that already signed in with `alcf-ai` needs no step at all,
+  and a container that mounts `~/.globus` is configured once for both;
+- nothing needs to be exported into the environment; `ALCF_API_KEY` is no longer
+  read, and a provider that still carries `token_command` keeps the old argv
+  path only while its shim does.
+
+In the admin panel the same flow is the provider's **Sign in** action: it
+returns the URL and accepts the pasted code, so the gateway host needs no
+loopback port and no browser.
+
+ALCF enforces a *high-assurance* session policy. A grant that keeps renewing can
+still be refused once the interactive authentication is too old; the upstream
+401 names it. Sign in again when that happens — the exchange reports it as a
+mint failure, not as a wrong key.
 
 ## Install
 
@@ -123,11 +145,11 @@ General, or the release step fails.
 
 - Python >= 3.10
 - `llm-rosetta >= 0.14.0.dev31` (the plugin shim loader, the vendor manifest —
-  which also carries the vendor's `logo` / `group` / `group_label` — and
-  `connection.token_command`; dev30 and earlier refuse a manifest that declares
+  which also carries the vendor's `logo` / `group` / `group_label` — and a
+  vendor-level `auth.py`; dev30 and earlier refuse a manifest that declares
   identity, which would take the whole package down with it)
-- No credential in the environment: the shipped exchange mints the token from
-  `~/.globus` (or `--token-file` / `--tokens-dir`)
+- No credential in the environment: the shipped exchange reads and renews the
+  Globus grant in `~/.globus`, or the record under the gateway's data directory
 
 ## License
 
