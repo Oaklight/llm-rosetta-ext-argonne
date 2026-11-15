@@ -2,7 +2,7 @@
 # shares, and the mark it shows.
 # Argo is Argonne's own API, so the mark is Argonne's delta rather than
 # the Argo project's squid: this is not that project.
-logo: https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argo@main/assets/argo.svg
+logo: https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argo@main/assets/argo.png
 # A leaf inherits every field here and may override any of them.
 connection:
   api_key_env: ARGO_API_KEY
