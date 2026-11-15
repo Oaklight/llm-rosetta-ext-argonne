@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 
-from llm_rosetta_shim_argo.providers.argo.messages.transforms import (
+from llm_rosetta_shim_argo.providers.argo.llm.messages.transforms import (
     _normalize_openai_response,
 )
 

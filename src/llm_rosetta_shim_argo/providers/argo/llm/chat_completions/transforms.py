@@ -42,7 +42,7 @@ from llm_rosetta.transforms import (
 
 # Re-export shared Argo model list transform for convention-based hook
 # discovery by the shim loader.
-from ..model_utils import model_list_transform  # noqa: F401
+from ...model_utils import model_list_transform  # noqa: F401
 
 post_ir_transforms = (
     rename_field("max_tokens", "max_completion_tokens", pattern=r"^gemini"),

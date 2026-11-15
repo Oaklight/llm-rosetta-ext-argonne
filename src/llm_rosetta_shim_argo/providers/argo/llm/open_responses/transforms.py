@@ -13,7 +13,7 @@ defaulting, and system flattening do not apply.
 
 from llm_rosetta.transforms import strip_fields_for_model
 
-from ..model_utils import model_list_transform  # noqa: F401
+from ...model_utils import model_list_transform  # noqa: F401
 
 post_ir_transforms = (
     strip_fields_for_model(
