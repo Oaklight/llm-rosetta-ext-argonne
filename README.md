@@ -51,59 +51,77 @@ only absolute imports.
 ## Credentials
 
 AskSage's inference lanes take a short-lived access token minted by
-`POST {host}/user/get-token-with-api-key`, and that token is the credential this
-package sends by default. The exchange ships with this package — the vendor
-manifest declares `connection.token_command: [python3, mint_token.py]`, which every
-leaf inherits — so a provider needs no `token_command` of its own: the gateway
-runs the exchange at startup, on the declared interval and after an upstream
-401. A provider that names its own command still wins.
+`POST {host}/user/get-token-with-api-key` from the account key the holder copies
+off the AskSage website. The exchange that performs that swap ships with this
+package: `providers/asksage/auth.py`, beside the vendor manifest, so every leaf
+inherits it. A shim ships one form of its credential exchange, so there is no
+`token_command` any more.
 
-Measured 2026-11-06 against the ANL deployment: the raw account key is accepted
-directly by the OpenAI lanes.  `POST /server/openai/v1/chat/completions` and
-`POST /server/openai/v1/responses` both answer 200 with a real body, and
+What the exchange owns:
+
+- **The account key is its input.** Put the key in the provider's `api_key`
+  (or export `ASKSAGE_API_KEY`, which the manifest names as the shim's
+  `api_key_env`). Both are the same input — the minted token is what goes
+  upstream, never the key.
+- **The host is part of the credential.** The token is minted against the origin
+  of the provider's `base_url`, so the ANL and public deployments can never be
+  mixed up — the mismatch that made a `token_command` deployment fail with
+  `Key doesnt exist`.
+- **The account email is required**, and there are three ways to give it, in
+  order of precedence: the provider's own `email` key, the record the sign-in
+  writes, or `ASKSAGE_TOKEN_EMAIL` in the gateway's environment. The one-step
+  way is the CLI:
+
+  ```bash
+  llm-rosetta credential login --provider "<the provider's name>"
+  ```
+
+  It asks for the email and stores it under the gateway's data directory, so
+  the provider config needs no extra key. The same record is what the admin
+  API's `PUT …/credential` installs.
+
+The token is cached until shortly before its `exp` claim, so a one-hour refresh
+interval does not buy a round trip per hour.
+
+Measured 2026-11-06 against the ANL deployment: the raw account key is also
+accepted directly by the OpenAI lanes.  `POST /server/openai/v1/chat/completions`
+and `POST /server/openai/v1/responses` both answer 200 with a real body, and
 `/server/openai/v1/embeddings` passes authentication and then answers 503
 `Embedding service unavailable` (a bogus key gets the `Token is invalid [2]`
 envelope on the same path, so the 503 is the service, not the credential).
-That makes the earlier statement that the inference lanes refuse the key stale
-for this account.  The minted-token default is unchanged.
+The minted-token default is unchanged.
 
-The manifest also declares `connection.token_command_env: ASKSAGE_API_KEY`, so the
-account key an operator enters in the admin panel is handed to the exchange in that
-variable — it is the command's input, and the minted token is what goes upstream.
-Exporting `ASKSAGE_API_KEY` (or `ASKSAGE_TOKEN_API_KEY` / `ASK_SAGE_API`) in the
-gateway's environment still works and feeds the same variable.
+### Typed endpoints
 
-The gateway's non-LLM endpoints install a static key only, so an embeddings
-provider configured through `asksage--embeddings` inherits the manifest's
-`token_command` and the gateway disables that endpoint with the reason
-`mints its credential with a token_command; non-LLM endpoints support a static
-key only`.  The leaf keeps that inherited credential on purpose: a per-leaf
-exception would be deleted again once typed endpoints share the minting
-([#1401](https://github.com/Oaklight/llm-rosetta/issues/1401)).  Until then,
-declare the endpoint without the shim:
+An embeddings provider declared under `providers:` shares its LLM lane's key
+ring, so `asksage--embeddings` is served by the same minted token — one entry
+covers every lane:
 
 ```jsonc
 {
-  "embeddings_providers": {
+  "providers": {
     "asksage": {
-      "format": "openai",
-      "base_url": "https://api.asksage.anl.gov/server/openai/v1",
-      "embeddings_path": "/embeddings",
-      "api_key": "<account key>"
+      "shim": "asksage--chat_completions",
+      "api_key": "<account key>",
+      "embeddings_shim": "asksage--embeddings"
     }
   },
-  "embeddings_models": {
-    "text-embedding-3-small": "asksage"
-  }
+  "models": {},
+  "embeddings_models": { "text-embedding-3-small": "asksage" }
 }
 ```
 
-Two keys in that shape are easy to get wrong. Inside an `embeddings_providers`
-entry the wire dialect is `format`, not `embeddings_format` — the latter is not
-read and the entry silently keeps the `openai` default. And the provider alone
-resolves nothing: a request's `model` is looked up in `embeddings_models`, so
-without that mapping `POST /v1/embeddings` answers
-`404 Unknown model: '<id>'. Configured: (none)` and never calls upstream.
+The legacy `embeddings_providers` section has no `providers:` lane to share the
+mint from, so an entry there that mints is still auto-disabled with a reason
+that names the section and the fix — move the provider to `providers:`.
+
+Two keys in that shape are easy to get wrong. Inside a legacy
+`embeddings_providers` entry the wire dialect is `format`, not
+`embeddings_format` — the latter is not read and the entry silently keeps the
+`openai` default. And the provider alone resolves nothing: a request's `model`
+is looked up in `embeddings_models`, so without that mapping
+`POST /v1/embeddings` answers `404 Unknown model: '<id>'. Configured: (none)`
+and never calls upstream.
 
 ## Install
 
