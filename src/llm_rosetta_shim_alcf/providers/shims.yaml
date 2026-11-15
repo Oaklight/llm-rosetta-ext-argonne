@@ -1,13 +1,8 @@
-# The shims this package ships, and where each one lives.
-#
-# The gateway reads this file instead of scanning the tree: a directory it does
-# not list is never parsed, so a new lane is visible to a gateway only once it
-# is added here.  Paths are relative to this directory and cannot leave it.
 version: 1
 shims:
   - name: alcf_metis--chat_completions
-    path: alcf/metis
+    path: alcf/metis/llm
   - name: alcf_minerva--chat_completions
-    path: alcf/minerva
+    path: alcf/minerva/llm
   - name: alcf_sophia--chat_completions
-    path: alcf/sophia
+    path: alcf/sophia/llm

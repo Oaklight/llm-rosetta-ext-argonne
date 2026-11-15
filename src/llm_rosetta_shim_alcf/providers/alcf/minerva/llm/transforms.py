@@ -10,7 +10,7 @@ cannot be addressed by request transforms; see the ATPI toolfix proxy
 or the planned gateway response-transform pipeline for a fix.
 """
 
-from ..model_utils import make_alcf_model_list_transform
+from ...model_utils import make_alcf_model_list_transform
 from llm_rosetta.transforms import (
     rewrite_harmony_tool_calls,
     default_tool_description,

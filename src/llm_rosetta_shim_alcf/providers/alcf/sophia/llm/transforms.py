@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..model_utils import make_alcf_model_list_transform
+from ...model_utils import make_alcf_model_list_transform
 from llm_rosetta.transforms import (
     _NamedTransform,
     default_tool_description,
