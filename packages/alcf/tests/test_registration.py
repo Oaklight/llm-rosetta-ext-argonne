@@ -31,7 +31,7 @@ _PROVIDERS_DIR = (
 
 def _provider_config(cluster: str) -> dict:
     """The raw ``provider.yaml`` of one cluster, parsed as data."""
-    path = _PROVIDERS_DIR / cluster / "provider.yaml"
+    path = _PROVIDERS_DIR / cluster / "llm" / "provider.yaml"
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 

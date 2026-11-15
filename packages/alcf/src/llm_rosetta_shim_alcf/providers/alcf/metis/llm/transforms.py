@@ -6,7 +6,7 @@ and ``parallel_tool_calls`` to avoid 400 errors.  Downgrade the
 ``developer`` role and fill ``content: null`` for safety.
 """
 
-from ..model_utils import make_alcf_model_list_transform
+from ...model_utils import make_alcf_model_list_transform
 from llm_rosetta.transforms import (
     default_tool_description,
     default_message_field,
