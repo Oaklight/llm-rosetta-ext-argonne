@@ -1,4 +1,8 @@
-# Vendor manifest: the credential every AskSage lane shares.  A leaf inherits
+# Vendor manifest: the credential and the mark every AskSage lane shares.
+# The mark is the vendor's own owl, served from this repository so the panel
+# never reaches the vendor's host.
+logo: https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-asksage@main/assets/asksage.png
+# A leaf inherits
 # every field here and may override any of them; a relative ``token_command``
 # argument resolves against this file's directory.
 connection:
