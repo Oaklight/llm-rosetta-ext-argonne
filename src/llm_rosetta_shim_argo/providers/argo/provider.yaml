@@ -1,8 +1,9 @@
 # Vendor manifest: the credential and the model-id field every Argo lane
 # shares, and the mark it shows.
-# Argo is Argonne's own API, so the mark is Argonne's delta rather than
-# the Argo project's squid: this is not that project.
-logo: https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argo@main/assets/argo.png
+# The mark is the vendor's own wordmark, cut out of the banner it publishes
+# and traced to a path -- the source is a 24px raster, so the pixels carry
+# its anti-aliasing and no font or bitmap is needed here.
+logo: https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argo@main/assets/argo.svg
 # A leaf inherits every field here and may override any of them.
 connection:
   api_key_env: ARGO_API_KEY
