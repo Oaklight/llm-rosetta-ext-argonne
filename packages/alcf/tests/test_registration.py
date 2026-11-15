@@ -50,7 +50,10 @@ def test_registers_alcf_shim(_registered, name):
     assert shim.connection.base_url.startswith(
         "https://inference-api.alcf.anl.gov/resource_server/"
     )
-    assert shim.connection.api_key_env == "ALCF_API_KEY"
+    # The Globus grant is the credential; there is no key to fill in, and no
+    # static fallback that would sit beside the exchange.
+    assert shim.connection.api_key_env is None
+    assert shim.connection.token_command is None
 
 
 @pytest.mark.parametrize("cluster", _CLUSTERS)
@@ -72,16 +75,45 @@ def test_the_manifest_gives_the_three_clusters_one_group(_registered):
 
 @pytest.mark.parametrize("name", _SHIMS)
 def test_the_credential_exchange_ships_with_the_shim(_registered, name):
-    """A provider needs no ``token_command``: the shim declares one.
+    """Every cluster inherits the one Globus exchange beside the manifest.
 
-    The relative argument is resolved against the provider's own directory by
-    the loader, so this loads the shims for real and checks the script exists —
-    the failure mode is a path that only exists in a source checkout.
+    ``auth.py`` is the whole credential: the loader executes it, so a syntax
+    error or a missing ``EXCHANGE`` fails here rather than at the first
+    request.
     """
     shim = get_shim(name)
     assert shim is not None
-    argv = shim.connection.token_command
-    assert argv is not None and argv[0] == "python3"
-    script = Path(argv[1])
-    assert script.is_absolute() and script.is_file(), argv
-    assert script.name == "mint_token.py"
+    assert shim.auth is not None, "the vendor manifest ships no auth.py"
+    assert shim.auth.kind == "oauth"
+    assert shim.auth.consumes_key is False
+    assert shim.connection.token_command is None
+    assert shim.connection.token_command_env is None
+
+
+@pytest.mark.parametrize("name", _SHIMS)
+def test_a_provider_without_a_grant_asks_for_a_sign_in(
+    _registered, name, tmp_path, monkeypatch
+):
+    """No record means a sign-in, reported without raising.
+
+    ``needs_interactive_setup`` runs while the gateway builds a config, outside
+    any event loop, so it must read local state and answer rather than fail.
+    The vendor's own file is redirected so a developer's real Globus grant is
+    neither read nor counted as this test's answer.
+    """
+    import sys
+
+    from llm_rosetta.shims.auth_exchange import AuthContext
+
+    shim = get_shim(name)
+    assert shim is not None
+    assert shim.auth is not None
+    module = sys.modules[type(shim.auth).__module__]
+    monkeypatch.setattr(
+        module, "VENDOR_TOKEN_PATH", tmp_path / "vendor" / "tokens.json"
+    )
+    ctx = AuthContext(provider="alcf", state_dir=str(tmp_path / "state"))
+
+    assert shim.auth.needs_interactive_setup(ctx) is True
+    assert shim.auth.account_id(ctx) is None
+    assert shim.auth.describe(ctx) is None

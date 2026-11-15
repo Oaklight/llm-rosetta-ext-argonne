@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from llm_rosetta.shims import get_shim
@@ -80,13 +78,19 @@ def test_the_three_clusters_share_a_group():
 
 @pytest.mark.parametrize("name", SHIMS)
 def test_the_credential_comes_from_the_vendor_manifest(name):
-    """The manifest holds the credential once; each leaf only adds its URL."""
+    """One exchange, declared once, inherited by every cluster.
+
+    The vendor ships ``auth.py`` beside its manifest, so the credential is
+    minted in code for all three lanes.  A shim declares one form of its
+    credential exchange, so neither an argv nor a static key may sit beside it.
+    """
     shim = get_shim(name)
     assert shim is not None
     assert shim.manifest is not None
     assert shim.manifest.path.name == "provider.yaml"
-    assert shim.connection.api_key_env == "ALCF_API_KEY"
-    assert shim.connection.token_command is not None
-    exchange = shim.connection.token_command[-1]
-    assert exchange.endswith("providers/alcf/mint_token.py")
-    assert Path(exchange).is_file()
+    assert shim.connection.token_command is None
+    assert shim.connection.api_key_env is None
+    assert shim.auth is not None
+    assert shim.auth is shim.manifest.auth
+    assert shim.auth.kind == "oauth"
+    assert shim.auth.consumes_key is False
