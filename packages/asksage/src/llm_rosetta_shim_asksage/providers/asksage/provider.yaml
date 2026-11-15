@@ -2,13 +2,17 @@
 # The mark is the vendor's own owl, served from this repository so the panel
 # never reaches the vendor's host.
 logo: https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-asksage@main/assets/asksage.png
-# A leaf inherits
-# every field here and may override any of them; a relative ``token_command``
-# argument resolves against this file's directory.
+#
+# A leaf inherits every field here and may override any of them.
+#
+# The credential is exchanged by ``auth.py`` beside this file: the account key
+# collected on the AskSage website is the input, and the token its endpoints
+# accept is what goes upstream.  The key therefore lives in the provider's own
+# ``api_key`` (or arrives through this variable, which a ``providers:`` entry
+# shares with the LLM lane), and there is no ``token_command`` — a shim ships
+# one form of its credential exchange.
+#
+# ``email`` on the provider names the account the key belongs to.  Without it
+# the exchange reads ``ASKSAGE_TOKEN_EMAIL``.
 connection:
   api_key_env: ASKSAGE_API_KEY
-  # The token exchange ships with the shim.
-  token_command: [python3, mint_token.py]
-  # The exchange takes the account key as input: the gateway hands it over in
-  # this variable and sends the minted token upstream.
-  token_command_env: ASKSAGE_API_KEY

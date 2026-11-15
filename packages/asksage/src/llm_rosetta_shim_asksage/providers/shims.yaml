@@ -1,4 +1,7 @@
 version: 1
+# The exchange is a vendor-level `auth.py`, and the shims need a core that
+# loads one beside a manifest.
+core: ">=0.14.0"
 shims:
   - name: asksage--chat_completions
     path: asksage/llm/chat_completions
