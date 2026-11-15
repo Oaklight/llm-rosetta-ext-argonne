@@ -1,17 +1,12 @@
-# The shims this package ships, and where each one lives.
-#
-# The gateway reads this file instead of scanning the tree: a directory it does
-# not list is never parsed, so a new lane is visible to a gateway only once it
-# is added here.  Paths are relative to this directory and cannot leave it.
 version: 1
 shims:
   - name: asksage--chat_completions
-    path: asksage/chat_completions
+    path: asksage/llm/chat_completions
   - name: asksage--messages
-    path: asksage/messages
+    path: asksage/llm/messages
   - name: asksage--open_responses
-    path: asksage/open_responses
+    path: asksage/llm/open_responses
   - name: asksage--google_generate
-    path: asksage/google_generate
+    path: asksage/llm/google_generate
   - name: asksage--embeddings
     path: asksage/embeddings
