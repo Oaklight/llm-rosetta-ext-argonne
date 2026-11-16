@@ -20,9 +20,10 @@ Two facts the exchange owns that the gateway does not model:
   minted against the origin of the provider's ``base_url``, so the two can
   never disagree — the mismatch that made ``token_command`` deployments fail
   with "Key doesnt exist".
-* **The account email is not a secret but it is required.**  Read from the
-  provider's own ``email`` key, then from the environment
-  (``ASKSAGE_TOKEN_EMAIL``), then from the record a previous mint wrote.
+* **The account email is not a secret but it is required.**  The vendor
+  manifest declares it as a form field, so it arrives in the entry's
+  ``auth_fields``; a hand-written flat ``email`` key, the record a previous
+  mint wrote and ``ASKSAGE_TOKEN_EMAIL`` are read after it.
 
 The token is cached under the gateway's ``state_dir`` until shortly before its
 ``exp`` claim, so a one-hour refresh interval does not spend a round trip per
