@@ -202,7 +202,7 @@ def test_a_missing_email_points_at_both_ways_to_set_it(asksage, tmp_path):
         input_key="key-1",
     )
 
-    with pytest.raises(AuthExchangeError, match="ASKSAGE_TOKEN_EMAIL"):
+    with pytest.raises(AuthExchangeError, match="Account email"):
         asksage._mint(ctx)
 
 
@@ -262,50 +262,55 @@ def test_revoke_forgets_the_cached_token(asksage, tmp_path, minted):
     assert asksage._record_path(ctx).exists() is False
 
 
-def test_install_stores_the_account_email(asksage, tmp_path):
-    """The email is the one fact the exchange cannot derive from the key."""
+def test_the_email_comes_from_the_entry_auth_fields(asksage, tmp_path, minted):
+    """The provider form stores what the operator typed in the entry."""
     ctx = AuthContext(
         provider="asksage",
-        config={"base_url": "https://api.asksage.ai/v1"},
+        config={
+            "base_url": "https://api.asksage.ai/v1",
+            "auth_fields": {"email": "entered@example.gov"},
+        },
         state_dir=str(tmp_path),
         input_key="key-1",
     )
 
-    summary = asksage.EXCHANGE.install(ctx, {"email": "user@example.gov"})
+    asksage._mint(ctx)
 
-    assert summary["subject"] == "user@example.gov"
-    assert asksage._email(ctx) == "user@example.gov"
-
-
-def test_install_keeps_a_cached_token(asksage, tmp_path, minted):
-    ctx = _ctx(tmp_path)
-    token = asksage._mint(ctx)
-    asksage._save_record(
-        ctx, {"email": "x@y.z", "access_token": token, "expires_at": 1e12}
-    )
-
-    asksage.EXCHANGE.install(ctx, {"email": "x@y.z"})
-
-    assert asksage._read_record(ctx)["access_token"] == token
+    assert minted[0][1] == "entered@example.gov"
 
 
-def test_install_refuses_a_record_without_an_email(asksage, tmp_path):
-    ctx = _ctx(tmp_path)
-
-    with pytest.raises(AuthExchangeError, match="email"):
-        asksage.EXCHANGE.install(ctx, {"api_key": "key-1"})
-
-
-def test_login_reads_the_email_from_the_operator(asksage, tmp_path, monkeypatch):
+def test_a_hand_written_email_key_still_works(asksage, tmp_path, minted):
+    """An entry written before the form existed keeps working."""
     ctx = AuthContext(
         provider="asksage",
-        config={"base_url": "https://api.asksage.ai/v1"},
+        config={"base_url": "https://api.asksage.ai/v1", "email": "old@example.gov"},
         state_dir=str(tmp_path),
         input_key="key-1",
     )
-    monkeypatch.setattr("builtins.input", lambda: " typed@example.gov ")
 
-    summary = asksage.EXCHANGE.login(ctx)
+    asksage._mint(ctx)
 
-    assert summary["subject"] == "typed@example.gov"
-    assert asksage._email(ctx) == "typed@example.gov"
+    assert minted[0][1] == "old@example.gov"
+
+
+def test_the_declared_field_is_the_account_email(asksage):
+    """The vendor manifest declares the input; the exchange declares nothing.
+
+    The form is data, so a change to it is a change to the YAML — the module
+    is not the home of the wording, the order, or the required flag.
+    """
+    from llm_rosetta.shims.providers import load_providers_from_dir
+
+    root = AUTH_PATH.parents[1]
+    by_name = {s.name: s for s in load_providers_from_dir(root)}
+
+    for shim in by_name.values():
+        (field,) = shim.fields
+        assert field["key"] == "email"
+        # The value has three sources with a precedence order, so the form
+        # cannot demand it: the env var is a legitimate answer the panel
+        # cannot see.
+        assert "required" not in field
+        assert field["label"] == "Account email"
+    # No second declaration: the exchange returns an empty tuple.
+    assert asksage.EXCHANGE.fields() == ()
