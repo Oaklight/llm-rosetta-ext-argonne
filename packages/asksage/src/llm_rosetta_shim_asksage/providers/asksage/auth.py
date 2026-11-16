@@ -146,9 +146,15 @@ def _host(ctx: AuthContext) -> str:
 def _email(ctx: AuthContext, record: Mapping[str, Any] | None = None) -> str:
     """Return the account email the key belongs to.
 
-    The config key comes first (an operator who wrote it means it), then the
-    record a previous sign-in or mint wrote, then the environment.
+    The entry's own ``auth_fields`` comes first — that is where the provider
+    form writes what the operator typed — then a hand-written flat ``email``
+    key, then the record a previous mint wrote, then the environment.
     """
+    declared = ctx.config.get("auth_fields")
+    if isinstance(declared, Mapping):
+        value = declared.get("email")
+        if isinstance(value, str) and value.strip():
+            return value.strip()
     configured = ctx.config.get("email")
     if isinstance(configured, str) and configured.strip():
         return configured.strip()
@@ -162,9 +168,8 @@ def _email(ctx: AuthContext, record: Mapping[str, Any] | None = None) -> str:
     if from_env.strip():
         return from_env.strip()
     raise AuthExchangeError(
-        "AskSage needs the account email to exchange the API key; run "
-        "`llm-rosetta credential login` for this provider, set \"email\" on it, "
-        f"or export {EMAIL_ENV}"
+        "AskSage needs the account email to exchange the API key; fill in the "
+        f"Account email field on the provider, or export {EMAIL_ENV}"
     )
 
 
@@ -357,21 +362,6 @@ def _summary(record: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _store_email(ctx: AuthContext, email: str) -> dict[str, Any]:
-    """Merge *email* into the record, keeping any token already cached.
-
-    The file is both the account bookmark and the token cache, so writing the
-    email must not cost a token that is still good; and an address that is not
-    an address is refused here rather than by the vendor's exchange.
-    """
-    if "@" not in email or not email.strip():
-        raise AuthExchangeError("that does not look like an AskSage account email")
-    record = _read_record(ctx) or {}
-    merged = {**record, "email": email.strip(), "saved_at": _now()}
-    _save_record(ctx, merged)
-    return _summary(merged)
-
-
 class AskSageKeyExchange(BaseAuthExchange):
     """The AskSage account key, exchanged for the token its lanes accept."""
 
@@ -381,6 +371,15 @@ class AskSageKeyExchange(BaseAuthExchange):
     def needs_interactive_setup(self, ctx: AuthContext) -> bool:
         """Never: the account key in the config is the whole setup."""
         return False
+
+    def fields(self) -> tuple[Mapping[str, Any], ...]:
+        """Return nothing: the account email is declared in ``provider.yaml``.
+
+        One home for the rule.  The vendor manifest carries a ``fields:``
+        block that every leaf inherits, so the panel gets the input without
+        this module, and changing the form is a change to the YAML.
+        """
+        return ()
 
     async def credential(self, ctx: AuthContext) -> str:
         """Return a token, minting one on a worker thread when needed."""
@@ -400,40 +399,6 @@ class AskSageKeyExchange(BaseAuthExchange):
         if record is None or not record.get("access_token"):
             return None
         return _summary(record)
-
-    def login(self, ctx: AuthContext) -> dict[str, Any]:
-        """Ask for the account email and store it beside the token cache.
-
-        AskSage has no browser sign-in: the account key is copied off the
-        website, and the one fact the exchange cannot derive is the email that
-        key belongs to.  This asks for it once — the flow
-        ``llm-rosetta credential login`` drives — and the record it returns is
-        what the admin API installs.
-        """
-        print(
-            "AskSage account email (the one the API key belongs to): ",
-            end="",
-            flush=True,
-        )
-        try:
-            email = input().strip()
-        except EOFError as exc:
-            raise AuthExchangeError("no account email was entered") from exc
-        return _store_email(ctx, email)
-
-    def install(self, ctx: AuthContext, record: Any) -> dict[str, Any]:
-        """Adopt a record that names the account email.
-
-        The key itself is never accepted here: it belongs in the provider's
-        ``api_key`` (or the shim's variable), where the gateway already keeps
-        it and where the admin editor can mask it.
-        """
-        if not isinstance(record, Mapping):
-            raise AuthExchangeError("a credential record must be an object")
-        email = record.get("email")
-        if not isinstance(email, str):
-            raise AuthExchangeError("the record names no account email")
-        return _store_email(ctx, email.strip())
 
     def revoke(self, ctx: AuthContext) -> bool:
         """Forget the cached token.  AskSage has no revocation endpoint.
