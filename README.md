@@ -68,17 +68,23 @@ What the exchange owns:
   mixed up — the mismatch that made a `token_command` deployment fail with
   `Key doesnt exist`.
 - **The account email is required**, and there are three ways to give it, in
-  order of precedence: the provider's own `email` key, the record the sign-in
-  writes, or `ASKSAGE_TOKEN_EMAIL` in the gateway's environment. The one-step
-  way is the CLI:
+  order of precedence: the **Account email** field on the provider (written into
+  the entry's `auth_fields`), a hand-written flat `email` key, or
+  `ASKSAGE_TOKEN_EMAIL` in the gateway's environment. The field is declared in
+  the vendor manifest, so the admin drawer renders it beside the API key and one
+  **Save** writes both — no CLI step and no separate record:
 
-  ```bash
-  llm-rosetta credential login --provider "<the provider's name>"
+  ```yaml
+  fields:
+    - key: email
+      label: Account email
+      placeholder: you@example.gov
+      help: The address the AskSage account key was issued to.
   ```
 
-  It asks for the email and stores it under the gateway's data directory, so
-  the provider config needs no extra key. The same record is what the admin
-  API's `PUT …/credential` installs.
+  The field is not marked `required`: the later sources still work, so a form
+  that refused to save without it would block a deployment that supplies the
+  address elsewhere.
 
 The token is cached until shortly before its `exp` claim, so a one-hour refresh
 interval does not buy a round trip per hour.
