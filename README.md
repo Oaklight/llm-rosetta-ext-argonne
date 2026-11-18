@@ -124,10 +124,35 @@ console script owns that: one authenticated SSH master connection, one SOCKS5
 forward on top of it, and a status you can branch on.
 
 ```bash
-llm-rosetta-argo-tunnel auth       # the one command that prompts for MFA
-llm-rosetta-argo-tunnel start      # publish the SOCKS forward
-llm-rosetta-argo-tunnel proxy-url  # socks5://127.0.0.1:10801
+llm-rosetta-argo-tunnel auth --target lambda5   # the one command that prompts for MFA
+llm-rosetta-argo-tunnel start                   # publish the SOCKS forward
+llm-rosetta-argo-tunnel proxy-url               # socks5://127.0.0.1:10801
 ```
+
+No install needed — the same program is published as one file:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/Oaklight/llm-rosetta-shim-argo/main/scripts/argo-tunnel.py
+python argo-tunnel.py auth --target lambda5
+```
+
+### Which machine it connects to
+
+`--target` is an **ssh destination**, passed to ssh verbatim:
+
+| `--target` | What ssh does |
+|---|---|
+| `lambda5` | Uses your `~/.ssh/config` `Host lambda5` stanza — its `HostName`, `Port`, `IdentityFile`, and `ProxyJump` if it has one |
+| `me@lambda5.cels.anl.gov` | Connects to that, exactly as `ssh me@lambda5.cels.anl.gov` would |
+| *(omitted)* | Builds `homes.cels.anl.gov` through `logins.cels.anl.gov` — a documented default, not a verified fact |
+
+With a target, no `-J` is passed unless you give `--jump`: an alias normally
+carries its own `ProxyJump`, and overriding it would silently replace your
+routing with this tool's guess. `--jump none` means a direct connection.
+
+`--user` applies only to a *built* destination, never to `--target` — an alias
+carries its own user, and rewriting `lambda5` into `lambda5@lambda5` would
+address a host ssh has never heard of.
 
 Then point the Argo provider's `proxy` field at that URL:
 
