@@ -20,8 +20,8 @@ def register_shims() -> None:
     """Load the bundled ``argo--*`` shims into llm-rosetta.
 
     The import is local so that importing this package does not require
-    llm-rosetta to be installed.  The ``llm-rosetta-argo-tunnel`` console
-    script lives here too, and it talks to ssh, not to the core library: an
+    llm-rosetta to be installed.  The ``argo-tunnel`` console script
+    lives here too, and it talks to ssh, not to the core library: an
     operator who only wants the tunnel should not have to install the
     translation layer to get it.
 
