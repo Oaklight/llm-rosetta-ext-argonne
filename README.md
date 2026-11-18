@@ -17,6 +17,10 @@ catalogue; the equivalent explicit entry is `{"url": "...", "path":
 "src/llm_rosetta_shim_argo/providers"}`. The repository is public, so no
 `token_env` is needed.
 
+The same package also ships `llm-rosetta-argo-tunnel`, the SSH tunnel CLI that
+makes the endpoint reachable from outside the network — see
+[The tunnel](#the-tunnel-llm-rosetta-argo-tunnel).
+
 ## Shims
 
 | Shim | Base | Endpoint |
@@ -112,12 +116,130 @@ the release and pushes `dist`. An organization that downgrades action tokens to
 read-only must restore "Read and write permissions" under Settings → Actions →
 General, or the release step fails.
 
+## The tunnel (`llm-rosetta-argo-tunnel`)
+
+`apps.inside.anl.gov` resolves only inside the Argonne network, and the jump
+host asks for Duo MFA on every new connection. The `llm-rosetta-argo-tunnel`
+console script owns that: one authenticated SSH master connection, one SOCKS5
+forward on top of it, and a status you can branch on.
+
+```bash
+llm-rosetta-argo-tunnel auth       # the one command that prompts for MFA
+llm-rosetta-argo-tunnel start      # publish the SOCKS forward
+llm-rosetta-argo-tunnel proxy-url  # socks5://127.0.0.1:10801
+```
+
+Then point the Argo provider's `proxy` field at that URL:
+
+```jsonc
+{
+  "providers": {
+    "argo": {
+      "type": "argo--chat_completions",
+      "proxy": "socks5://127.0.0.1:10801",
+      "api_key": "<your ANL username>"
+    }
+  },
+  "shims": { "presets": ["argo"] }
+}
+```
+
+`base_url` stays `https://apps.inside.anl.gov/argoapi/v1` — a **dynamic**
+(SOCKS) forward, not a local `-L` one, so the hostname the shim declares is the
+hostname the TLS certificate is checked against. A local forward would answer
+on `127.0.0.1` and fail verification.
+
+### Commands
+
+| Command | Does | Prompts |
+|---|---|---|
+| `auth` | Opens the master connection (`ssh -M -N -f`) and keeps it for `ControlPersist` (default 8h) | yes, once |
+| `start` | Adds the forward to the running master (`ssh -O forward -D`); idempotent | no |
+| `stop` | Cancels the forward; the master stays authenticated | no |
+| `status` | Prints `forwarding` / `idle` / `wedged` / `absent`; exit code 0 only for `forwarding` | no |
+| `logout` | Drops the master, and any forward on it | no |
+| `proxy-url` | Prints the URL to paste into a provider config | no |
+
+`status --json` prints the same state as one object, for a launcher:
+
+```json
+{"state": "forwarding", "proxy_url": "socks5://127.0.0.1:10801",
+ "socket": "/home/user/.ssh/argo-tunnel-user-1a2b3c4d5e6f",
+ "host": "homes.cels.anl.gov", "jump": "logins.cels.anl.gov"}
+```
+
+### Where the socket lives, and how long it lasts
+
+Both come from your own SSH setup first. The CLI reads the effective
+configuration with `ssh -G`, so whatever you set globally is what gets used:
+
+| | Your `ssh_config` sets it | You pass a flag / env | Neither |
+|---|---|---|---|
+| socket | `ControlPath` — used as given | `--state-dir` / `ARGO_TUNNEL_STATE_DIR`, or `--socket` / `ARGO_TUNNEL_SOCKET` for an exact path | `$XDG_CONFIG_HOME/llm-rosetta-gateway/tunnel/ssh-<hash>` (else `~/.config/…`) |
+| lifetime | `ControlPersist` — used as given | `--control-persist` / `ARGO_TUNNEL_CONTROL_PERSIST` | `8h` |
+
+```bash
+llm-rosetta-argo-tunnel status --json   # "socket" tells you which one is in play
+```
+
+Three details worth knowing:
+
+- **A `ControlMaster auto` you already configured is reused, not routed
+  around.** If `ssh_config` names a `ControlPath`, that is the socket — a tool
+  that invented its own would report `absent` while an authenticated master sat
+  right there.
+- **`ControlPersist` counts from the last *use*, not the last authentication.**
+  A request through the forward counts. Measured: with `ControlPersist=20s`
+  and traffic at t=12s, the master exited at t=33s — the deadline moved with
+  the traffic. Under steady use the master does not expire; an idle one does.
+  A request that is still in flight when the master exits fails; the next
+  request needs `start` again, or `auth` if the master is gone.
+- **Socket paths have a hard length limit** (`sun_path`, ~100 bytes). A deep
+  `$HOME` would silently truncate; the CLI keeps your directory but shortens
+  the file name, and falls back to `/tmp/argo-tunnel-<uid>` if even that is too
+  long.
+
+`--ssh-config FILE` reads an additional ssh config file (ssh still reads
+`~/.ssh/config` itself).
+
+### Configuration
+
+Every command accepts `--host`, `--jump`, `--user`, `--bind`, `--port` and
+`--control-persist` before or after the subcommand, and reads the same names
+from the environment as `ARGO_TUNNEL_HOST`, `ARGO_TUNNEL_JUMP`,
+`ARGO_TUNNEL_USER`, `ARGO_TUNNEL_BIND`, `ARGO_TUNNEL_PORT`,
+`ARGO_TUNNEL_SOCKET` and `ARGO_TUNNEL_CONTROL_PERSIST`. `ARGO_TUNNEL_JUMP=none`
+drops the jump hop, for a host already inside the network.
+
+The defaults are the Argonne pair: `homes.cels.anl.gov` through
+`logins.cels.anl.gov`, port `10801` on `127.0.0.1`.
+
+### Notes
+
+- **Only `auth` prompts.** Everything else runs with `BatchMode=yes`, so a
+  launcher or a unit file gets a failure instead of a hung process. If `auth`
+  is run while a master is already up, it says so rather than asking for a
+  second approval.
+- **`wedged` is a real state.** A master that does not answer (as opposed to
+  one that was never there) needs `logout` first; `start` refuses it rather
+  than forwarding over a dead control socket.
+- **Two goals need two masters.** The control socket path is derived from the
+  target, the jump host and the port, so a second target does not silently
+  reuse the first one's session.
+- **Containers.** An image cannot see the host's control socket or its
+  `127.0.0.1`. Bind the forward to the host's bridge address
+  (`--bind 172.17.0.1`) and point `proxy` at it. Never bind `0.0.0.0`: SOCKS5
+  here has no authentication.
+
 ## Requirements
 
 - Python >= 3.10
 - `llm-rosetta >= 0.14.0.dev28` (needs the plugin shim loader and the
   vendor manifest)
 - `ARGO_API_KEY` in the environment at request time
+- for the tunnel: `ssh` on `PATH`, and an SSH account that reaches
+  `homes.cels.anl.gov` through `logins.cels.anl.gov`. `llm-rosetta` itself is
+  not needed for the tunnel — importing the package does not import it.
 
 ## License
 
