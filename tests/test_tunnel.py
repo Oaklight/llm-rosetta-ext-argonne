@@ -10,7 +10,11 @@ never added to a master that does not answer.
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import tempfile
 from dataclasses import replace
+from pathlib import Path
 from typing import Sequence
 
 import pytest
@@ -124,6 +128,130 @@ def test_a_configured_socket_path_wins():
 
 
 # ---------------------------------------------------------------------------
+# Socket placement and persist lifetime
+# ---------------------------------------------------------------------------
+
+
+def _with_ssh_g(monkeypatch, values: dict[str, str]) -> None:
+    """Pin what ``ssh -G`` reports, so the placement tests never touch ssh."""
+    monkeypatch.setattr(
+        "llm_rosetta_shim_argo.tunnel._resolved_ssh_config", lambda config: dict(values)
+    )
+
+
+def test_without_a_system_setting_the_socket_lives_under_our_config_dir(monkeypatch):
+    _with_ssh_g(monkeypatch, {})
+    socket = TunnelConfig(user="u").socket
+    assert socket.parent.parent.name == "llm-rosetta-gateway"
+    assert socket.parent.name == "tunnel"
+    assert socket.name.startswith("ssh-")
+
+
+def test_xdg_config_home_moves_the_default_location(monkeypatch, tmp_path):
+    _with_ssh_g(monkeypatch, {})
+    # A short root on purpose: a deeply nested home would cross the sun_path
+    # limit and be rehomed to /tmp (see the next test).
+    short = Path(tempfile.mkdtemp(prefix="xdg-", dir="/tmp"))
+    try:
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(short))
+        socket = TunnelConfig(user="u").socket
+        assert socket.is_relative_to(short)
+        assert socket.parent.name == "tunnel"
+    finally:
+        shutil.rmtree(short, ignore_errors=True)
+
+
+def test_a_home_too_deep_for_a_unix_socket_falls_back_to_a_short_directory(
+    monkeypatch, tmp_path
+):
+    """``sockaddr_un.sun_path`` is ~100 bytes; past that ssh silently truncates
+    and the socket can never be found again."""
+    _with_ssh_g(monkeypatch, {})
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / ("d" * 120)))
+    socket = TunnelConfig(user="u").socket
+    assert len(str(socket)) <= 100
+    assert socket.parent == Path("/tmp") / f"argo-tunnel-{os.getuid()}"
+
+
+def test_a_state_dir_the_operator_named_wins(monkeypatch, tmp_path):
+    _with_ssh_g(monkeypatch, {})
+    socket = TunnelConfig(user="u", state_dir=tmp_path).socket
+    assert socket.is_relative_to(tmp_path)
+
+
+def test_a_system_controlpath_is_used_rather_than_our_own(monkeypatch, tmp_path):
+    """A ControlMaster the operator configured is a session worth reusing, not
+    one to route around: a tool that invented its own path would report
+    ``absent`` while an authenticated master sat right there."""
+    system_socket = tmp_path / "cm-abc"
+    _with_ssh_g(monkeypatch, {"controlpath": str(system_socket)})
+    assert TunnelConfig(user="u").socket == system_socket
+
+
+def test_a_system_controlpath_is_used_verbatim_including_ssh_tokens(monkeypatch):
+    """``ssh -G`` already expanded ``~`` and ``%C`` into a concrete path, so the
+    value is taken as given — re-expanding it would invent a different file."""
+    resolved = str(Path.home() / "cm-d999a3ce479981f70bc3d02384a65d896e2481f8")
+    _with_ssh_g(monkeypatch, {"controlpath": resolved})
+    assert TunnelConfig(user="u").socket == Path(resolved)
+
+
+def test_a_too_deep_system_controlpath_keeps_its_directory_and_shortens_its_name(
+    monkeypatch, tmp_path
+):
+    deep = tmp_path / ("d" * 120)
+    _with_ssh_g(monkeypatch, {"controlpath": str(deep / "sock")})
+    socket = TunnelConfig(user="u").socket
+    assert socket.parent == deep
+    assert socket.name.startswith("ssh-")
+
+
+def test_an_explicit_path_beats_everything(monkeypatch, tmp_path):
+    _with_ssh_g(monkeypatch, {"controlpath": str(tmp_path / "system")})
+    explicit = tmp_path / "explicit"
+    assert TunnelConfig(user="u", control_path=explicit).socket == explicit
+
+
+def test_two_targets_get_two_sockets(monkeypatch):
+    _with_ssh_g(monkeypatch, {})
+    a = TunnelConfig(user="u", host="h1")
+    b = TunnelConfig(user="u", host="h2")
+    assert a.socket != b.socket
+
+
+def test_persist_falls_back_to_our_default_when_ssh_says_no(monkeypatch):
+    """``ssh -G`` prints ``controlpersist no`` when nobody configured one: it is
+    the default, not a choice, so it must not be propagated."""
+    _with_ssh_g(monkeypatch, {"controlpersist": "no"})
+    assert TunnelConfig(user="u").effective_control_persist() == "8h"
+
+
+def test_persist_honours_the_systems_value(monkeypatch):
+    _with_ssh_g(monkeypatch, {"controlpersist": "14400"})
+    assert TunnelConfig(user="u").effective_control_persist() == "14400"
+
+
+def test_an_explicit_persist_beats_the_systems(monkeypatch):
+    _with_ssh_g(monkeypatch, {"controlpersist": "14400"})
+    assert (
+        TunnelConfig(user="u", control_persist="1h").effective_control_persist() == "1h"
+    )
+
+
+def test_the_same_persist_reaches_the_auth_command(monkeypatch):
+    _with_ssh_g(monkeypatch, {"controlpersist": "14400"})
+    runner = FakeRunner([_absent_check(), CommandResult(0)])
+    _tunnel(runner).auth()
+    assert "ControlPersist=14400" in runner.argvs[-1]
+
+
+def test_env_can_name_the_state_dir(monkeypatch, tmp_path):
+    _with_ssh_g(monkeypatch, {})
+    config = TunnelConfig.from_env({"ARGO_TUNNEL_STATE_DIR": str(tmp_path)})
+    assert config.socket.is_relative_to(tmp_path)
+
+
+# ---------------------------------------------------------------------------
 # Status
 # ---------------------------------------------------------------------------
 
@@ -165,7 +293,9 @@ def test_auth_builds_a_master_connection_and_is_the_only_interactive_call():
     assert interactive is True
     assert "-M" in argv and "-f" in argv and "-N" in argv
     assert "BatchMode=yes" not in argv
-    assert f"ControlPersist={TunnelConfig().control_persist}" in argv
+    # The persist value is resolved, not literal: ssh_config's own value wins
+    # over this tool's default (see the placement tests below).
+    assert any(a.startswith("ControlPersist=") for a in argv)
     assert "--" not in argv
 
 
@@ -173,6 +303,17 @@ def test_auth_names_the_forward_options_it_will_need_later():
     runner = FakeRunner([_absent_check(), CommandResult(0)])
     _tunnel(runner).auth()
     assert "ExitOnForwardFailure=yes" in runner.argvs[-1]
+
+
+def test_auth_names_its_destination_last():
+    """Regression: the destination used to be appended only to the commands
+    that carry ``-O``, so ``auth`` invoked ssh with no host at all — ssh
+    printed its usage text and the CLI reported an empty error."""
+    runner = FakeRunner([_absent_check(), CommandResult(0)])
+    _tunnel(runner).auth()
+    argv = runner.argvs[-1]
+    assert argv[-1] == "someone@homes.cels.anl.gov"
+    assert "--" not in argv
 
 
 def test_auth_refuses_to_ask_for_a_second_approval_over_a_live_master():

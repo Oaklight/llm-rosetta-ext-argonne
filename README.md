@@ -168,6 +168,40 @@ on `127.0.0.1` and fail verification.
  "host": "homes.cels.anl.gov", "jump": "logins.cels.anl.gov"}
 ```
 
+### Where the socket lives, and how long it lasts
+
+Both come from your own SSH setup first. The CLI reads the effective
+configuration with `ssh -G`, so whatever you set globally is what gets used:
+
+| | Your `ssh_config` sets it | You pass a flag / env | Neither |
+|---|---|---|---|
+| socket | `ControlPath` — used as given | `--state-dir` / `ARGO_TUNNEL_STATE_DIR`, or `--socket` / `ARGO_TUNNEL_SOCKET` for an exact path | `$XDG_CONFIG_HOME/llm-rosetta-gateway/tunnel/ssh-<hash>` (else `~/.config/…`) |
+| lifetime | `ControlPersist` — used as given | `--control-persist` / `ARGO_TUNNEL_CONTROL_PERSIST` | `8h` |
+
+```bash
+llm-rosetta-argo-tunnel status --json   # "socket" tells you which one is in play
+```
+
+Three details worth knowing:
+
+- **A `ControlMaster auto` you already configured is reused, not routed
+  around.** If `ssh_config` names a `ControlPath`, that is the socket — a tool
+  that invented its own would report `absent` while an authenticated master sat
+  right there.
+- **`ControlPersist` counts from the last *use*, not the last authentication.**
+  A request through the forward counts. Measured: with `ControlPersist=20s`
+  and traffic at t=12s, the master exited at t=33s — the deadline moved with
+  the traffic. Under steady use the master does not expire; an idle one does.
+  A request that is still in flight when the master exits fails; the next
+  request needs `start` again, or `auth` if the master is gone.
+- **Socket paths have a hard length limit** (`sun_path`, ~100 bytes). A deep
+  `$HOME` would silently truncate; the CLI keeps your directory but shortens
+  the file name, and falls back to `/tmp/argo-tunnel-<uid>` if even that is too
+  long.
+
+`--ssh-config FILE` reads an additional ssh config file (ssh still reads
+`~/.ssh/config` itself).
+
 ### Configuration
 
 Every command accepts `--host`, `--jump`, `--user`, `--bind`, `--port` and

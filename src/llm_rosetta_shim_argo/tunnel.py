@@ -72,7 +72,17 @@ DEFAULT_BIND = "127.0.0.1"
 
 #: How long the master stays usable after the last multiplexed session ends.
 #: This is the interval the operator does not have to authenticate again.
+#: Only used when the operator's own ``ssh_config`` says nothing: a
+#: ``ControlPersist`` the system set is theirs, and is left alone.
 DEFAULT_CONTROL_PERSIST = "8h"
+
+#: Where this tool puts its control socket when ``ssh_config`` puts none.
+#: ``%s`` is the data directory: ``$XDG_CONFIG_HOME`` or ``~/.config``.
+CONTROL_SOCKET_SUBDIR = "tunnel"
+
+#: ``sockaddr_un.sun_path`` is 108 bytes on Linux and 104 on macOS, so a
+#: socket path has a hard ceiling that a deep ``$HOME`` can cross.
+_MAX_SOCKET_PATH = 100
 
 #: Watch for a link that went away without closing: a forward over a dead
 #: connection still looks bound on this side.
@@ -121,10 +131,20 @@ class TunnelConfig:
         bind: Address the SOCKS port listens on.  ``127.0.0.1`` unless a
             container on the same host has to reach it.
         port: TCP port of the SOCKS listener.
-        control_path: The multiplexing socket.  Every command addresses the
-            same path, which is what makes them one session.
-        control_persist: How long the master outlives its last session.
+        control_path: The multiplexing socket, when one is named outright.
+            ``None`` means "whatever the operator's ``ssh_config`` says, else
+            this tool's own location" — see :attr:`socket`.
+        control_persist: How long the master outlives its last session, when
+            one is named outright.  ``None`` means "``ssh_config``'s value,
+            else :data:`DEFAULT_CONTROL_PERSIST`" — see
+            :meth:`effective_control_persist`.
+        state_dir: Where this tool keeps its socket and its small state file.
+            ``None`` means ``$XDG_CONFIG_HOME/llm-rosetta-gateway``, else
+            ``~/.config/llm-rosetta-gateway``.
         ssh: The ``ssh`` executable.
+        ssh_config: An extra ssh config file to read.  ``ssh`` reads
+            ``~/.ssh/config`` on its own; this is for a deployment that keeps
+            its settings elsewhere.
     """
 
     host: str = DEFAULT_HOST
@@ -133,8 +153,10 @@ class TunnelConfig:
     bind: str = DEFAULT_BIND
     port: int = DEFAULT_PORT
     control_path: Path | None = None
-    control_persist: str = DEFAULT_CONTROL_PERSIST
+    control_persist: str | None = None
+    state_dir: Path | None = None
     ssh: str = "ssh"
+    ssh_config: Path | None = None
 
     # -- identity -----------------------------------------------------------
 
@@ -150,21 +172,118 @@ class TunnelConfig:
             return None
         return f"{self.user}@{self.jump}" if self.user else self.jump
 
+    # -- placement ----------------------------------------------------------
+
+    @property
+    def data_dir(self) -> Path:
+        """This tool's own state directory.
+
+        The gateway's data directory is the natural home for a socket that
+        exists to serve it, and it is the one location an operator already
+        knows how to back up, move or remove.  ``$XDG_CONFIG_HOME`` is
+        honoured because that is where the gateway puts its config.
+        """
+        if self.state_dir is not None:
+            return Path(self.state_dir).expanduser()
+        base = os.environ.get("XDG_CONFIG_HOME", "").strip()
+        root = Path(base).expanduser() if base else Path.home() / ".config"
+        return root / "llm-rosetta-gateway"
+
+    def _socket_name(self) -> str:
+        """A file name that is unique to this target.
+
+        Short on purpose: the full path must fit in ``sun_path``.  The digest
+        covers everything that makes two tunnels different — the target, the
+        jump hop, the login and the port — so two configurations never share
+        a name.
+        """
+        identity = f"{self.login}|{self.jump or ''}|{self.port}|{self.bind}"
+        return "ssh-" + hashlib.sha256(identity.encode()).hexdigest()[:12]
+
     @property
     def socket(self) -> Path:
-        """The control socket path.
+        """The control socket path this tool uses.
 
-        Derived from the connection identity, not from ``%C``: the path must
-        be computable *before* ssh runs, because ``status`` reads it to decide
-        whether a master exists at all.  Two different targets therefore get
-        two different masters instead of quietly sharing one.
+        Resolution order, widest first — the operator's own setup wins:
+
+        1. an explicitly configured path (:attr:`control_path`);
+        2. ``ControlPath`` from ``ssh_config``, with ssh's tokens expanded by
+           ssh itself, when it names one;
+        3. this tool's own location under :attr:`data_dir`.
+
+        The second case is why the path is read from ``ssh -G`` rather than
+        computed: a system ``ControlMaster auto`` with
+        ``ControlPath ~/.ssh/cm-%C`` is a deliberate choice, and a tool that
+        invented its own path would leave that master unmanaged — status would
+        report ``absent`` while an authenticated session sat right there.
+
+        Returns:
+            The socket path.  A path that would exceed the ``sun_path`` limit
+            is replaced by a hashed one under the same directory.
         """
         if self.control_path is not None:
-            return self.control_path
-        identity = f"{self.login}|{self.jump or ''}|{self.port}"
-        digest = hashlib.sha256(identity.encode()).hexdigest()[:12]
-        user = os.environ.get("USER") or "user"
-        return Path.home() / ".ssh" / f"argo-tunnel-{user}-{digest}"
+            return Path(self.control_path).expanduser()
+
+        system = self.ssh_config_path("controlpath")
+        if system:
+            path = Path(os.path.expanduser(system))
+            if len(str(path)) <= _MAX_SOCKET_PATH:
+                return path
+            # Too deep for a Unix socket: keep the operator's directory, since
+            # the permission on it is the part that matters, and shorten the
+            # name.
+            return path.parent / self._socket_name()
+
+        directory = self.data_dir / CONTROL_SOCKET_SUBDIR
+        candidate = directory / self._socket_name()
+        if len(str(candidate)) > _MAX_SOCKET_PATH:
+            # A deep home is not the operator's fault and not something we can
+            # fix by asking; the run directory is short and per-user.
+            fallback = Path("/tmp") / f"argo-tunnel-{os.getuid()}"
+            return fallback / self._socket_name()
+        return candidate
+
+    def ssh_config_path(self, keyword: str) -> str | None:
+        """Ask ssh what *keyword* resolves to for this target.
+
+        ``ssh -G`` prints the effective configuration after every file and
+        every ``-o`` has been applied, which is the only reliable way to see a
+        system-wide choice.  The probe runs at most once per process per
+        configuration.
+
+        Args:
+            keyword: A lowercase directive name, e.g. ``"controlpath"``.
+
+        Returns:
+            The value, or ``None`` when ssh says nothing useful — the binary
+            is missing, the target does not resolve, or the value is ssh's own
+            "unset" spelling.
+        """
+        resolved = _resolved_ssh_config(self)
+        return resolved.get(keyword) or None
+
+    def effective_control_persist(self) -> str:
+        """How long the master survives, as this run should set it.
+
+        Order: an explicitly configured value, then ``ssh_config``'s, then
+        :data:`DEFAULT_CONTROL_PERSIST`.  ``ssh_config``'s ``ControlPersist``
+        is honoured for the same reason ``ControlPath`` is: it is the
+        operator's statement about how long their own session stays good for,
+        and this tool's job is to reuse that session, not to overrule it.
+
+        Returns:
+            An ssh ``ControlPersist`` value: a time with a unit, or ``"yes"``.
+        """
+        if self.control_persist is not None:
+            return self.control_persist
+        system = self.ssh_config_path("controlpersist")
+        # ``ssh -G`` prints ``controlpersist no`` when nobody configured one —
+        # it is the default, not a choice — so it means "unset" here.  A
+        # configured value comes back normalised to seconds (``4h`` → 14400),
+        # which ``-o`` accepts unchanged.
+        if system and system.lower() != "no":
+            return system
+        return DEFAULT_CONTROL_PERSIST
 
     @property
     def proxy_url(self) -> str:
@@ -218,6 +337,8 @@ class TunnelConfig:
             config = replace(config, control_path=Path(socket_path).expanduser())
         if persist := get("ARGO_TUNNEL_CONTROL_PERSIST"):
             config = replace(config, control_persist=persist)
+        if state_dir := get("ARGO_TUNNEL_STATE_DIR"):
+            config = replace(config, state_dir=Path(state_dir).expanduser())
         return config
 
 
@@ -286,6 +407,58 @@ def run_subprocess(argv: Sequence[str], *, interactive: bool = False) -> Command
     )
 
 
+#: ``ssh -G`` answers are cached per target: the resolution is a property of
+#: the configuration, not of the call, and ``status`` asks for two keys.
+_SSH_G_CACHE: dict[tuple[str, ...], dict[str, str]] = {}
+
+
+def _resolved_ssh_config(config: TunnelConfig) -> dict[str, str]:
+    """The effective ssh configuration for this target, as ``ssh -G`` sees it.
+
+    ``ssh -G`` prints the configuration ssh would use without connecting, so it
+    is the only way to read a system-wide ``ControlMaster``/``ControlPath``/
+    ``ControlPersist`` — the values the operator set in ``~/.ssh/config`` or
+    ``/etc/ssh/ssh_config``.
+
+    Args:
+        config: Supples the target, the jump hop and any extra config file.
+
+    Returns:
+        Lowercase directive → value.  An empty mapping when ssh cannot be
+        asked; every caller then falls back to this tool's own default.
+    """
+    key = (config.ssh, config.login, config.jump or "", str(config.ssh_config or ""))
+    cached = _SSH_G_CACHE.get(key)
+    if cached is not None:
+        return cached
+
+    argv = [config.ssh]
+    if config.ssh_config:
+        argv += ["-F", str(config.ssh_config)]
+    argv += ["-G"]
+    if config.jump:
+        argv += ["-J", config.jump_login or config.jump]
+    argv.append(config.login)
+
+    resolved: dict[str, str] = {}
+    try:
+        done = subprocess.run(
+            argv, check=False, text=True, capture_output=True, stdin=subprocess.DEVNULL
+        )
+    except OSError:
+        _SSH_G_CACHE[key] = resolved
+        return resolved
+    if done.returncode != 0:
+        _SSH_G_CACHE[key] = resolved
+        return resolved
+    for line in done.stdout.splitlines():
+        name, _, value = line.partition(" ")
+        if name and value:
+            resolved[name.lower()] = value.strip()
+    _SSH_G_CACHE[key] = resolved
+    return resolved
+
+
 def probe_socks(bind: str, port: int, *, timeout: float = 3.0) -> bool:
     """Whether a SOCKS5 server answers on *bind*:*port*.
 
@@ -339,6 +512,12 @@ class Tunnel:
         cleared only by :meth:`auth`.
         """
         argv = [self.config.ssh]
+        # ``-F`` here and in the ``ssh -G`` probe: the socket and the persist
+        # value are read from one configuration file, and the connection must
+        # be made under the same one, or the master would land somewhere the
+        # probe never looked.
+        if self.config.ssh_config:
+            argv += ["-F", str(self.config.ssh_config)]
         if batch:
             argv += ["-o", "BatchMode=yes"]
         argv += ["-S", str(self.config.socket)]
@@ -418,12 +597,17 @@ class Tunnel:
                 hint="run 'logout' to clear it, then 'auth' again",
             )
         self.config.socket.parent.mkdir(parents=True, exist_ok=True)
+        # ``-M`` only marks this connection as a master.  When the operator's
+        # ssh_config already says ``ControlMaster auto`` that is redundant but
+        # harmless; what must not be forced is ``ControlPath`` — it is passed
+        # through ``-S`` on every command, so the master and the clients can
+        # never disagree about which socket is in play.
         argv = self._transport_args(batch=False) + [
             "-M",
             "-N",
             "-f",
             "-o",
-            f"ControlPersist={self.config.control_persist}",
+            f"ControlPersist={self.config.effective_control_persist()}",
         ]
         argv += self._forward_args()
         argv.append(self.config.login)
@@ -527,7 +711,7 @@ def _build_parser() -> argparse.ArgumentParser:
     epilog = (
         "Environment: ARGO_TUNNEL_HOST, ARGO_TUNNEL_JUMP (or 'none'), "
         "ARGO_TUNNEL_USER, ARGO_TUNNEL_BIND, ARGO_TUNNEL_PORT, "
-        "ARGO_TUNNEL_SOCKET, ARGO_TUNNEL_CONTROL_PERSIST."
+        "ARGO_TUNNEL_SOCKET, ARGO_TUNNEL_CONTROL_PERSIST, ARGO_TUNNEL_STATE_DIR."
     )
     # The connection options are accepted before *and* after the subcommand.
     # A launcher writes them once at the end of the line ("start --port N"),
@@ -566,7 +750,23 @@ def _build_parser() -> argparse.ArgumentParser:
     common.add_argument(
         "--control-persist",
         default=argparse.SUPPRESS,
-        help=f"how long the master survives idle (default: {DEFAULT_CONTROL_PERSIST})",
+        help=(
+            "how long the master survives idle; defaults to the operator's "
+            f"ssh_config ControlPersist, else {DEFAULT_CONTROL_PERSIST}"
+        ),
+    )
+    common.add_argument(
+        "--state-dir",
+        default=argparse.SUPPRESS,
+        help=(
+            "where this tool keeps its socket when ssh_config names none "
+            "(default: $XDG_CONFIG_HOME/llm-rosetta-gateway)"
+        ),
+    )
+    common.add_argument(
+        "--ssh-config",
+        default=argparse.SUPPRESS,
+        help="extra ssh config file to read (ssh reads ~/.ssh/config itself)",
     )
     common.add_argument(
         "--json",
@@ -638,6 +838,10 @@ def _config_from_args(args: argparse.Namespace) -> TunnelConfig:
         overrides["port"] = port
     if persist := getattr(args, "control_persist", None):
         overrides["control_persist"] = persist
+    if state_dir := getattr(args, "state_dir", None):
+        overrides["state_dir"] = Path(state_dir).expanduser()
+    if ssh_config := getattr(args, "ssh_config", None):
+        overrides["ssh_config"] = Path(ssh_config).expanduser()
     return replace(config, **overrides) if overrides else config
 
 
