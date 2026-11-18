@@ -36,7 +36,9 @@ def _repack(data: bytes, *, add: str | None = None, drop: str | None = None) -> 
     """Return *data* with one member added or removed."""
     out = io.BytesIO()
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as src:
-        members = [(m, src.extractfile(m).read()) for m in src.getmembers() if m.isfile()]
+        members = [
+            (m, src.extractfile(m).read()) for m in src.getmembers() if m.isfile()
+        ]
     with tarfile.open(fileobj=out, mode="w:gz") as tar:
         for member, blob in members:
             if member.name == drop:

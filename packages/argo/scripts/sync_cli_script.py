@@ -1,7 +1,7 @@
 """Write ``scripts/argo-tunnel.py``: a runnable copy of the tunnel module.
 
 The CLI has one shape for two audiences.  The package installs it as a console
-script (``llm-rosetta-argo-tunnel``); an operator without a checkout, or on a
+script (``argo-tunnel``); an operator without a checkout, or on a
 host where installing is a ticket, fetches one file and runs it.  Both must be
 the same program, so the second is generated from the first rather than
 maintained beside it.
@@ -35,7 +35,7 @@ _BANNER = """#!/usr/bin/env python3
 # file runs from a download with no install step:
 #
 #   curl -fsSLO https://raw.githubusercontent.com/Oaklight/llm-rosetta-shim-argo/main/scripts/argo-tunnel.py
-#   python argo-tunnel.py auth --target lambda5
+#   python argo-tunnel.py auth pding --target lambda5.cels.anl.gov
 """
 
 

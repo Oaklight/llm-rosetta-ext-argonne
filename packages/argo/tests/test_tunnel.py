@@ -10,7 +10,6 @@ never added to a master that does not answer.
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import tempfile
 from dataclasses import replace
@@ -28,9 +27,20 @@ from llm_rosetta_shim_argo.tunnel import (
     CommandResult,
     _build_parser,
     _config_from_args,
+    _write_profile,
     main,
     probe_socks,
 )
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_ssh(monkeypatch, tmp_path_factory):
+    """Keep the suite off the host's ssh config, its listening sockets and its
+    real state directory (``~/.config/llm-rosetta-gateway``)."""
+    monkeypatch.setattr("llm_rosetta_shim_argo.tunnel._ssh_g", lambda *a, **k: {})
+    monkeypatch.setattr("llm_rosetta_shim_argo.tunnel._SSH_G_CACHE", {})
+    monkeypatch.setattr("llm_rosetta_shim_argo.tunnel.listener_owner", lambda *a: None)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("config")))
 
 
 class FakeRunner:
@@ -69,9 +79,12 @@ def _wedged_check() -> CommandResult:
     )
 
 
-def _args(**overrides):
-    """Build a namespace for keyword options; True adds a bare flag."""
-    argv: list[str] = []
+def _args(*positional, **overrides):
+    """Build a namespace: positional words first, then options.
+
+    A keyword of ``True`` adds a bare flag; anything else takes a value.
+    """
+    argv = list(positional)
     for key, value in overrides.items():
         flag = "--" + key.replace("_", "-")
         argv += [flag] if value is True else [flag, str(value)]
@@ -151,16 +164,43 @@ def test_a_default_run_builds_its_destination_from_the_vendor_pair():
     assert config.jump_login == "abc@logins.cels.anl.gov"
 
 
-def test_target_is_used_verbatim_so_an_ssh_config_alias_still_resolves():
-    """``lambda5`` is a ``Host`` stanza, not a hostname.  Rewriting it into
-    ``lambda5@lambda5`` would address something ssh has never heard of."""
+def test_a_default_run_prefers_the_stanza_that_maps_to_the_default_host(monkeypatch):
+    """An Argonne account reaches the host through its own ``Host homes``
+    stanza; addressing the bare name would skip the route and the key."""
+    monkeypatch.setattr(
+        "llm_rosetta_shim_argo.tunnel._ssh_g",
+        lambda config, name: (
+            {"hostname": ["homes.cels.anl.gov"], "user": ["pding"]}
+            if name == "homes"
+            else {}
+        ),
+    )
+    # No --user: the stanza's own account is not prefixed onto the alias, the
+    # way ssh resolves it, so the stanza's User wins rather than being shadowed.
+    assert TunnelConfig().login == "homes"
+    # Where the operator named the account it is carried, and still no -J.
+    config = TunnelConfig(user="pding")
+    assert config.login == "pding@homes"
+    # The alias carries its own ProxyJump; adding -J would replace it.
+    assert config.jump_login is None
+
+
+def test_the_account_name_qualifies_the_target_without_rewriting_it():
+    """``lambda5`` stays the ``Host`` alias ssh matches on; the account is the
+    ssh ``user@host`` prefix, not part of the pattern."""
     config = TunnelConfig(target="lambda5", user="abc")
-    assert config.login == "lambda5"
+    assert config.login == "abc@lambda5"
+    assert "lambda5" in config.hop_entries()
 
 
 def test_a_raw_target_keeps_its_own_user():
-    config = TunnelConfig(target="someone@lambda5.cels.anl.gov", user="abc")
+    config = TunnelConfig(target="someone@lambda5.cels.anl.gov")
     assert config.login == "someone@lambda5.cels.anl.gov"
+
+
+def test_a_conflicting_account_name_is_refused():
+    with pytest.raises(ValueError):
+        TunnelConfig(target="someone@lambda5.cels.anl.gov", user="abc").login
 
 
 def test_a_target_without_a_jump_flag_leaves_ssh_config_to_decide():
@@ -215,9 +255,11 @@ def test_env_names_the_target(monkeypatch):
 
 
 def test_cli_target_wins_over_host_and_user():
+    """The target is addressed verbatim so its alias still resolves; ``--user``
+    is carried as the login prefix, not dropped."""
     args = _args(target="lambda5", host="ignored.example", user="ignored")
     config = _config_from_args(args)
-    assert config.login == "lambda5"
+    assert config.login == "ignored@lambda5"
 
 
 def test_cli_jump_none_is_a_decision_not_an_absence():
@@ -259,16 +301,13 @@ def test_xdg_config_home_moves_the_default_location(monkeypatch, tmp_path):
         shutil.rmtree(short, ignore_errors=True)
 
 
-def test_a_home_too_deep_for_a_unix_socket_falls_back_to_a_short_directory(
-    monkeypatch, tmp_path
-):
+def test_a_home_too_deep_for_a_unix_socket_is_refused(monkeypatch, tmp_path):
     """``sockaddr_un.sun_path`` is ~100 bytes; past that ssh silently truncates
-    and the socket can never be found again."""
-    _with_ssh_g(monkeypatch, {})
+    and the socket can never be found again, so it is an error, not a fallback."""
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / ("d" * 120)))
-    socket = TunnelConfig(user="u").socket
-    assert len(str(socket)) <= 100
-    assert socket.parent == Path("/tmp") / f"argo-tunnel-{os.getuid()}"
+    with pytest.raises(TunnelError) as caught:
+        _ = TunnelConfig(user="u").socket
+    assert "too long" in str(caught.value)
 
 
 def test_a_state_dir_the_operator_named_wins(monkeypatch, tmp_path):
@@ -294,14 +333,12 @@ def test_a_system_controlpath_is_used_verbatim_including_ssh_tokens(monkeypatch)
     assert TunnelConfig(user="u").socket == Path(resolved)
 
 
-def test_a_too_deep_system_controlpath_keeps_its_directory_and_shortens_its_name(
-    monkeypatch, tmp_path
-):
+def test_a_too_deep_system_controlpath_is_refused(monkeypatch, tmp_path):
     deep = tmp_path / ("d" * 120)
     _with_ssh_g(monkeypatch, {"controlpath": str(deep / "sock")})
-    socket = TunnelConfig(user="u").socket
-    assert socket.parent == deep
-    assert socket.name.startswith("ssh-")
+    with pytest.raises(TunnelError) as caught:
+        _ = TunnelConfig(user="u").socket
+    assert "ControlPath" in str(caught.value)
 
 
 def test_an_explicit_path_beats_everything(monkeypatch, tmp_path):
@@ -363,8 +400,13 @@ def test_env_can_name_the_state_dir(monkeypatch, tmp_path):
         (_alive_check(), True, TunnelState.FORWARDING),
     ],
 )
-def test_status_separates_the_four_states(check, port_open, expected):
-    assert _tunnel(FakeRunner([check]), port_open=port_open).status() == expected
+def test_status_separates_the_four_states(check, port_open, expected, tmp_path):
+    config = replace(TunnelConfig(user="someone", port=10801), state_dir=tmp_path)
+    if expected == TunnelState.FORWARDING:
+        # A listening port alone is not proof; the record is.
+        _write_profile(config, owned=True, forward=True)
+    tunnel = Tunnel(config, runner=FakeRunner([check]), prober=lambda *a: port_open)
+    assert tunnel.status() == expected
 
 
 def test_an_absent_master_is_never_blamed_on_the_port():
@@ -414,18 +456,20 @@ def test_auth_names_its_destination_last():
     assert "--" not in argv
 
 
-def test_auth_refuses_to_ask_for_a_second_approval_over_a_live_master():
-    with pytest.raises(TunnelError) as caught:
-        _tunnel(FakeRunner([_alive_check()])).auth()
-    assert "already answers" in str(caught.value)
-    assert caught.value.hint
+def test_auth_reuses_a_live_master_without_a_second_prompt():
+    runner = FakeRunner([_alive_check()])
+    result = _tunnel(runner).auth()
+    assert result.ok
+    # Only the check ran: no second ssh, so no second Duo approval.
+    assert len(runner.calls) == 1
+    assert runner.calls[0][1] is False
 
 
-def test_auth_names_logout_when_the_socket_is_wedged():
+def test_auth_never_removes_a_wedged_socket_it_did_not_create():
     with pytest.raises(TunnelError) as caught:
         _tunnel(FakeRunner([_wedged_check()])).auth()
     assert "does not answer" in str(caught.value)
-    assert "logout" in (caught.value.hint or "")
+    assert "inspect" in (caught.value.hint or "")
 
 
 def test_auth_reports_ssh_output_on_failure():
@@ -450,11 +494,20 @@ def test_start_adds_the_forward_with_the_full_spec():
     assert argv[argv.index("-D") + 1] == "127.0.0.1:10801"
 
 
-def test_start_is_idempotent_when_the_forward_is_already_up():
+def test_start_is_idempotent_when_this_tool_owns_the_forward(tmp_path):
+    config = TunnelConfig(user="u", state_dir=tmp_path)
+    _write_profile(config, owned=True, forward=True)
     runner = FakeRunner([_alive_check()])
-    result = _tunnel(runner, port_open=True).start()
+    result = Tunnel(config, runner=runner, prober=lambda *a: True).start()
     assert result.ok
     assert len(runner.calls) == 1  # only the check; ssh -O forward never ran
+
+
+def test_an_unowned_listener_is_never_taken_for_our_forward(tmp_path):
+    """A SOCKS server on the port proves nothing about who put it there."""
+    config = TunnelConfig(user="u", state_dir=tmp_path)
+    tunnel = Tunnel(config, runner=FakeRunner([_alive_check()]), prober=lambda *a: True)
+    assert tunnel.status() == TunnelState.WEDGED
 
 
 def test_start_without_a_master_tells_the_operator_what_to_run():
@@ -468,9 +521,11 @@ def test_start_over_a_wedged_master_also_refuses():
         _tunnel(FakeRunner([_wedged_check()])).start()
 
 
-def test_stop_cancels_the_same_spec_it_forwarded():
+def test_stop_cancels_the_same_spec_it_forwarded(tmp_path):
+    config = replace(TunnelConfig(user="someone", port=10801), state_dir=tmp_path)
+    _write_profile(config, owned=True, forward=True)
     runner = FakeRunner([_alive_check(), CommandResult(0)])
-    _tunnel(runner, port_open=True).stop()
+    Tunnel(config, runner=runner, prober=lambda *a: True).stop()
     argv = runner.argvs[-1]
     assert argv[argv.index("-O") + 1] == "cancel"
     assert argv[argv.index("-D") + 1] == "127.0.0.1:10801"
@@ -492,16 +547,18 @@ def test_stop_on_an_idle_master_does_not_send_a_cancel():
     assert len(runner.calls) == 1  # the check; no '-O cancel'
 
 
-def test_stop_names_logout_when_the_master_is_wedged():
+def test_stop_refuses_a_socket_it_cannot_read():
     with pytest.raises(TunnelError) as caught:
         _tunnel(FakeRunner([_wedged_check()])).stop()
-    assert "logout" in (caught.value.hint or "")
+    assert "inspect" in (caught.value.hint or "")
 
 
-def test_stop_reports_a_real_cancel_failure():
+def test_stop_reports_a_real_cancel_failure(tmp_path):
+    config = replace(TunnelConfig(user="someone", port=10801), state_dir=tmp_path)
+    _write_profile(config, owned=True, forward=True)
     runner = FakeRunner([_alive_check(), CommandResult(SSH_FAILURE, "", "boom")])
     with pytest.raises(TunnelError) as caught:
-        _tunnel(runner, port_open=True).stop()
+        Tunnel(config, runner=runner, prober=lambda *a: True).stop()
     assert "boom" in str(caught.value)
 
 
@@ -516,15 +573,22 @@ def test_logout_exits_the_master():
 # ---------------------------------------------------------------------------
 
 
-def test_every_non_interactive_command_runs_in_batch_mode():
+def test_every_non_interactive_command_runs_in_batch_mode(tmp_path):
+    """Only ``auth`` may prompt; a stale master must fail fast instead of
+    waiting for an MFA answer nobody is there to give."""
+    config = replace(TunnelConfig(user="someone", port=10801), state_dir=tmp_path)
+    _write_profile(config, owned=True, forward=True)
+    # Every later call defaults to success, i.e. a live master.
     runner = FakeRunner([_alive_check()])
-    tunnel = _tunnel(runner, port_open=True)
+    tunnel = Tunnel(config, runner=runner, prober=lambda *a: True)
     tunnel.status()
     tunnel.start()
+    tunnel.stop()
+    tunnel.logout()
+    assert len(runner.calls) >= 6
     for argv, interactive in runner.calls:
-        if "-O" in argv:
-            assert "BatchMode=yes" in argv
-            assert interactive is False
+        assert interactive is False
+        assert "BatchMode=yes" in argv
 
 
 def test_the_jump_host_is_carried_on_the_command():
@@ -604,7 +668,66 @@ def test_json_reads_the_same_state_in_either_position(monkeypatch, capsys):
 
 def test_cli_without_a_command_prints_help_and_fails(capsys):
     assert main([]) == 2
-    assert "llm-rosetta-argo-tunnel" in capsys.readouterr().out
+    assert "argo-tunnel" in capsys.readouterr().out
+
+
+def test_the_account_name_is_accepted_where_ssh_puts_it():
+    config = _config_from_args(_args("auth", "pding"))
+    assert config.login == "pding@homes.cels.anl.gov"
+    assert config.jump_login == "pding@logins.cels.anl.gov"
+
+
+def test_the_flag_beats_the_positional():
+    config = _config_from_args(_args("auth", "positional", user="flag"))
+    assert config.user == "flag"
+
+
+def test_a_key_is_offered_on_the_hop_as_well_as_the_destination(tmp_path):
+    """``-i`` reaches only the destination.  The hop re-reads configuration on
+    its own, so the key is written where the hop will see it — measured: without
+    it the hop answers ``Permission denied (publickey)`` before any MFA."""
+    key = tmp_path / "work"
+    config = TunnelConfig(user="pding", key=key)
+    entries = config.hop_entries()
+    assert set(entries) == {"homes.cels.anl.gov", "logins.cels.anl.gov"}
+    for directives in entries.values():
+        joined = "\n".join(directives)
+        assert f'IdentityFile "{key}"' in joined
+        assert "IdentitiesOnly yes" in joined
+
+
+def test_the_generated_config_includes_the_operators_file_last(tmp_path):
+    """ssh takes the first value it sees, so what this tool wrote wins where it
+    speaks and the alias's HostName/ProxyJump still apply everywhere else."""
+    config = TunnelConfig(
+        user="pding", key=tmp_path / "work", config_file=tmp_path / "config"
+    )
+    (tmp_path / "config").write_text("Host *\n    ServerAliveInterval 60\n")
+    path = config.write_config_file()
+    text = path.read_text()
+    assert text.index("Host homes.cels.anl.gov") < text.index("Include ")
+    assert f'Include "{tmp_path / "config"}"' in text
+
+
+def test_nothing_detected_means_no_generated_file(tmp_path):
+    """Nothing to add: the operator's own configuration is the whole story, and
+    ``-F`` stays a single, predictable indirection."""
+    config = TunnelConfig(config_file=tmp_path / "config")
+    (tmp_path / "config").write_text("Host *\n")
+    assert config.write_config_file() == tmp_path / "config"
+
+
+def test_an_alias_stays_an_alias_in_the_generated_file(tmp_path):
+    """Rewriting ``lambda5`` into ``lambda5.cels.anl.gov`` would lose the
+    stanza that supplies HostName and route."""
+    config = TunnelConfig(target="lambda5", user="pding", key=tmp_path / "k")
+    assert "lambda5" in config.hop_entries()
+
+
+def test_proxy_names_a_jump_host_not_a_socks_url(capsys):
+    """``--proxy`` is ssh's vocabulary: a hop, the same thing as ``-J``."""
+    assert main(["proxy-url", "--proxy", "logins.cels.anl.gov"]) == 0
+    assert capsys.readouterr().out.strip() == "socks5://127.0.0.1:10801"
 
 
 def test_cli_prints_the_hint_on_a_refused_action(monkeypatch, capsys):
