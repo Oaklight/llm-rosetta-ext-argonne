@@ -26,6 +26,8 @@ from llm_rosetta_shim_argo.tunnel import (
     TunnelError,
     TunnelState,
     CommandResult,
+    _build_parser,
+    _config_from_args,
     main,
     probe_socks,
 )
@@ -67,6 +69,15 @@ def _wedged_check() -> CommandResult:
     )
 
 
+def _args(**overrides):
+    """Build a namespace for keyword options; True adds a bare flag."""
+    argv: list[str] = []
+    for key, value in overrides.items():
+        flag = "--" + key.replace("_", "-")
+        argv += [flag] if value is True else [flag, str(value)]
+    return _build_parser().parse_args(argv)
+
+
 def _stdout_of(argv, capsys) -> str:
     main(argv)
     return capsys.readouterr().out.strip()
@@ -96,8 +107,8 @@ def test_env_override_and_empty_means_unset():
         }
     )
     # An empty variable keeps the default rather than blanking it: only the
-    # explicit word "none" disables the jump hop.
-    assert config.jump == "logins.cels.anl.gov"
+    # explicit word "none" decides "no jump hop".
+    assert config.effective_jump == "logins.cels.anl.gov"
     assert config.port == 10999
     assert config.user == "abc"
     assert config.login == "abc@homes.cels.anl.gov"
@@ -105,7 +116,9 @@ def test_env_override_and_empty_means_unset():
 
 
 def test_env_can_disable_the_jump_hop():
-    assert TunnelConfig.from_env({"ARGO_TUNNEL_JUMP": "none"}).jump is None
+    config = TunnelConfig.from_env({"ARGO_TUNNEL_JUMP": "none"})
+    assert config.no_jump is True
+    assert config.jump_login is None
 
 
 def test_a_bad_port_is_refused_rather_than_ignored():
@@ -125,6 +138,91 @@ def test_socket_path_differs_per_target_so_two_masters_never_collide():
 def test_a_configured_socket_path_wins():
     config = TunnelConfig(control_path="/tmp/ctl")
     assert str(config.socket) == "/tmp/ctl"
+
+
+# ---------------------------------------------------------------------------
+# Which machine is authenticated to
+# ---------------------------------------------------------------------------
+
+
+def test_a_default_run_builds_its_destination_from_the_vendor_pair():
+    config = TunnelConfig(user="abc")
+    assert config.login == "abc@homes.cels.anl.gov"
+    assert config.jump_login == "abc@logins.cels.anl.gov"
+
+
+def test_target_is_used_verbatim_so_an_ssh_config_alias_still_resolves():
+    """``homes`` is a ``Host`` stanza, not a hostname.  Rewriting it into
+    ``homes@homes`` would address something ssh has never heard of."""
+    config = TunnelConfig(target="homes", user="abc")
+    assert config.login == "homes"
+
+
+def test_a_raw_target_keeps_its_own_user():
+    config = TunnelConfig(target="someone@homes.cels.anl.gov", user="abc")
+    assert config.login == "someone@homes.cels.anl.gov"
+
+
+def test_a_target_without_a_jump_flag_leaves_ssh_config_to_decide():
+    """An alias usually carries its own ``ProxyJump``; passing ``-J`` would
+    silently replace it with our guess at the vendor's hop."""
+    assert TunnelConfig(target="homes").jump_login is None
+
+
+def test_a_target_with_an_explicit_jump_still_gets_one():
+    config = TunnelConfig(target="homes", jump="logins.cels.anl.gov", user="u")
+    assert config.jump_login == "u@logins.cels.anl.gov"
+
+
+def test_a_jump_that_already_carries_a_user_is_not_prefixed():
+    config = TunnelConfig(target="homes", jump="bob@logins.cels.anl.gov", user="u")
+    assert config.jump_login == "bob@logins.cels.anl.gov"
+
+
+def test_a_direct_connection_passes_no_jump_even_without_a_target():
+    config = TunnelConfig(host="inner.example", no_jump=True)
+    assert config.login == "inner.example"
+    assert config.jump_login is None
+
+
+def test_the_default_destination_still_uses_the_vendor_hop():
+    assert TunnelConfig().effective_jump == "logins.cels.anl.gov"
+
+
+def test_auth_targets_the_destination_the_operator_named():
+    runner = FakeRunner([_absent_check(), CommandResult(0)])
+    tunnel = Tunnel(
+        TunnelConfig(target="homes", port=10999),
+        runner=runner,
+        prober=lambda *a: False,
+    )
+    tunnel.auth()
+    assert runner.argvs[-1][-1] == "homes"
+    assert "-J" not in runner.argvs[-1]
+
+
+def test_two_targets_do_not_share_a_master():
+    a = TunnelConfig(target="homes")
+    b = TunnelConfig(target="metis")
+    assert a.socket != b.socket
+
+
+def test_env_names_the_target(monkeypatch):
+    _with_ssh_g(monkeypatch, {})
+    config = TunnelConfig.from_env({"ARGO_TUNNEL_TARGET": "me@homes.cels.anl.gov"})
+    assert config.login == "me@homes.cels.anl.gov"
+    assert config.jump_login is None
+
+
+def test_cli_target_wins_over_host_and_user():
+    args = _args(target="homes", host="ignored.example", user="ignored")
+    config = _config_from_args(args)
+    assert config.login == "homes"
+
+
+def test_cli_jump_none_is_a_decision_not_an_absence():
+    config = _config_from_args(_args(target="mine", jump="none"))
+    assert config.jump_login is None
 
 
 # ---------------------------------------------------------------------------
@@ -438,7 +536,7 @@ def test_the_jump_host_is_carried_on_the_command():
 
 def test_no_jump_hop_means_no_j_flag():
     runner = FakeRunner([_alive_check()])
-    _tunnel(runner, port_open=True, jump=None).status()
+    _tunnel(runner, port_open=True, jump=None, no_jump=True).status()
     assert "-J" not in runner.argvs[-1]
 
 

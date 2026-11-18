@@ -5,6 +5,28 @@ reaches a jump host that asks for Duo MFA on each new connection.  This module
 owns both facts: it keeps one authenticated master connection open, and it
 publishes a dynamic (SOCKS5) forward on top of it.
 
+Single file on purpose
+----------------------
+
+This module imports only the standard library and nothing else from this
+package, so it can be fetched and run without installing anything::
+
+    curl -fsSLO https://raw.githubusercontent.com/Oaklight/llm-rosetta-shim-argo/main/scripts/argo-tunnel.py
+    python argo-tunnel.py auth --target homes
+
+That copy is generated from this file by ``scripts/sync_cli_script.py`` and a
+test fails when the two drift.  The rule that keeps it possible: no relative
+import, no ``llm_rosetta`` import, nothing but stdlib at module scope.
+
+Which machine gets authenticated to
+-----------------------------------
+
+An ssh destination, not a hostname this tool assembles: ``--target homes``
+uses the operator's own ``ssh_config`` stanza (its ``HostName``, ``Port``,
+``IdentityFile`` and ``ProxyJump``), while ``--target me@host`` is used as
+given.  Only when no target is named does the tool build one, from the vendor's
+jump host and a host that is documented as a default rather than a fact.
+
 Why SOCKS and not a local port forward
 --------------------------------------
 
@@ -20,7 +42,7 @@ Why the prompt lives here
 -------------------------
 
 A forward can be added to an already-authenticated session
-(``ssh -O forward``), so exactly one command — :func:`command_auth` — can block
+(``ssh -O forward``), so exactly one command — :meth:`Tunnel.auth` — can block
 on a prompt.  Everything else runs with ``BatchMode=yes`` and fails rather than
 wait, which is what makes the CLI safe to call from a launcher or a unit file.
 
@@ -58,10 +80,18 @@ __all__ = [
     "main",
 ]
 
-#: The jump host that serves outside the Argonne network, and the machine that
-#: can reach the API host.  Both are vendor facts, so they are defaults here
-#: rather than arguments every caller has to repeat.
+#: The jump host that serves outside the Argonne network.  The cluster names it
+#: fronts are deployment facts, not vendor facts, so only the hop is a default.
 DEFAULT_JUMP_HOST = "logins.cels.anl.gov"
+
+#: Where the forward is opened when the operator names no target.
+#:
+#: This is a **guess**, copied from ``n-getty/argo-shim``, and it is the one
+#: value here that was never verified: ``homes.cels.anl.gov`` has no public
+#: ``A`` record, so it may only resolve on the far side of the jump host.  Any
+#: host that can reach ``apps.inside.anl.gov`` is equivalent — the SOCKS point
+#: only needs a shell, not a particular machine — so an operator who has a
+#: preferred one should name it with ``--target`` rather than inherit this.
 DEFAULT_HOST = "homes.cels.anl.gov"
 
 #: The SOCKS port.  ``1080`` is the conventional one and is often already
@@ -123,11 +153,24 @@ class TunnelConfig:
     """Everything the tunnel needs to know about *where* it connects.
 
     Attributes:
+        target: The ssh destination to authenticate to, used verbatim — either
+            a ``Host`` alias from ``ssh_config`` (``homes``) or a raw
+            destination (``someone@homes.cels.anl.gov``).  ``None`` builds
+            one from :attr:`host` and :attr:`user`.  When set, it replaces both
+            and the jump hop is left to ``ssh_config`` unless one is named
+            here: an alias usually carries its own ``ProxyJump``, and passing
+            ``-J`` would override that.
         host: The machine the forward is made from — the one that can reach
-            the API host.
-        jump: The externally reachable hop, or ``None`` for a direct
-            connection (a host already inside the network).
-        user: The account name used on both hops.
+            the API host.  Ignored when :attr:`target` is set.
+        jump: The externally reachable hop when one is named outright.  ``None``
+            means "undecided": :attr:`effective_jump` then falls back to
+            :data:`DEFAULT_JUMP_HOST` for a built destination, and to
+            ``ssh_config`` for an alias.
+        no_jump: Set when the operator asked for a direct connection
+            (``--jump none``).  Distinct from :attr:`jump` being ``None``,
+            which is silent rather than a decision.
+        user: The account name used on both hops.  Not applied to
+            :attr:`target`'s destination, which carries its own if it needs one.
         bind: Address the SOCKS port listens on.  ``127.0.0.1`` unless a
             container on the same host has to reach it.
         port: TCP port of the SOCKS listener.
@@ -147,8 +190,10 @@ class TunnelConfig:
             its settings elsewhere.
     """
 
+    target: str | None = None
     host: str = DEFAULT_HOST
-    jump: str | None = DEFAULT_JUMP_HOST
+    jump: str | None = None
+    no_jump: bool = False
     user: str | None = None
     bind: str = DEFAULT_BIND
     port: int = DEFAULT_PORT
@@ -162,15 +207,49 @@ class TunnelConfig:
 
     @property
     def login(self) -> str:
-        """``user@host`` when a user is configured, else ``host``."""
+        """The ssh destination: the target verbatim, else ``user@host``.
+
+        A target is passed through unchanged so that an ``ssh_config`` alias
+        still resolves — rewriting ``homes`` into ``homes@homes`` would
+        address a host that does not exist.
+        """
+        if self.target:
+            return self.target
         return f"{self.user}@{self.host}" if self.user else self.host
 
     @property
-    def jump_login(self) -> str | None:
-        """The jump host in ``-J`` form, carrying the same user."""
-        if self.jump is None:
+    def effective_jump(self) -> str | None:
+        """The hop to pass as ``-J``, or ``None`` to say nothing and let ssh decide.
+
+        Three cases, and the third is the one that matters:
+
+        1. the operator named a hop — use it;
+        2. the operator said ``--jump none`` — pass no ``-J`` at all;
+        3. nothing was said.  A built destination (:attr:`target` unset) gets
+           the vendor default hop, because building one is this tool's job.  An
+           alias gets **nothing**: its ``ssh_config`` stanza usually carries
+           its own ``ProxyJump``, and passing ``-J`` would silently replace
+           that with our guess.
+        """
+        if self.jump:
+            return self.jump
+        if self.no_jump or self.target:
             return None
-        return f"{self.user}@{self.jump}" if self.user else self.jump
+        return DEFAULT_JUMP_HOST
+
+    @property
+    def jump_login(self) -> str | None:
+        """The jump hop in ``-J`` form.
+
+        The user is prefixed only for a bare host name; a value that already
+        carries one (or a nickname) is passed through unchanged.
+        """
+        hop = self.effective_jump
+        if hop is None:
+            return None
+        if "@" in hop:
+            return hop
+        return f"{self.user}@{hop}" if self.user else hop
 
     # -- placement ----------------------------------------------------------
 
@@ -197,7 +276,7 @@ class TunnelConfig:
         jump hop, the login and the port — so two configurations never share
         a name.
         """
-        identity = f"{self.login}|{self.jump or ''}|{self.port}|{self.bind}"
+        identity = f"{self.login}|{self.effective_jump or ''}|{self.port}|{self.bind}"
         return "ssh-" + hashlib.sha256(identity.encode()).hexdigest()[:12]
 
     @property
@@ -318,10 +397,13 @@ class TunnelConfig:
             return value or None
 
         config = cls()
+        if target := get("ARGO_TUNNEL_TARGET"):
+            config = replace(config, target=target)
         if host := get("ARGO_TUNNEL_HOST"):
             config = replace(config, host=host)
-        if jump := get("ARGO_TUNNEL_JUMP"):
-            config = replace(config, jump=None if jump.lower() == "none" else jump)
+        if (jump := get("ARGO_TUNNEL_JUMP")) is not None:
+            direct = jump.lower() == "none"
+            config = replace(config, jump=None if direct else jump, no_jump=direct)
         if user := get("ARGO_TUNNEL_USER"):
             config = replace(config, user=user)
         if bind := get("ARGO_TUNNEL_BIND"):
@@ -427,7 +509,12 @@ def _resolved_ssh_config(config: TunnelConfig) -> dict[str, str]:
         Lowercase directive → value.  An empty mapping when ssh cannot be
         asked; every caller then falls back to this tool's own default.
     """
-    key = (config.ssh, config.login, config.jump or "", str(config.ssh_config or ""))
+    key = (
+        config.ssh,
+        config.login,
+        config.jump_login or "",
+        str(config.ssh_config or ""),
+    )
     cached = _SSH_G_CACHE.get(key)
     if cached is not None:
         return cached
@@ -436,8 +523,8 @@ def _resolved_ssh_config(config: TunnelConfig) -> dict[str, str]:
     if config.ssh_config:
         argv += ["-F", str(config.ssh_config)]
     argv += ["-G"]
-    if config.jump:
-        argv += ["-J", config.jump_login or config.jump]
+    if hop := config.jump_login:
+        argv += ["-J", hop]
     argv.append(config.login)
 
     resolved: dict[str, str] = {}
@@ -521,8 +608,8 @@ class Tunnel:
         if batch:
             argv += ["-o", "BatchMode=yes"]
         argv += ["-S", str(self.config.socket)]
-        if self.config.jump:
-            argv += ["-J", self.config.jump_login or self.config.jump]
+        if hop := self.config.jump_login:
+            argv += ["-J", hop]
         return argv
 
     def _forward_args(self) -> list[str]:
@@ -709,9 +796,10 @@ class Tunnel:
 
 def _build_parser() -> argparse.ArgumentParser:
     epilog = (
-        "Environment: ARGO_TUNNEL_HOST, ARGO_TUNNEL_JUMP (or 'none'), "
-        "ARGO_TUNNEL_USER, ARGO_TUNNEL_BIND, ARGO_TUNNEL_PORT, "
-        "ARGO_TUNNEL_SOCKET, ARGO_TUNNEL_CONTROL_PERSIST, ARGO_TUNNEL_STATE_DIR."
+        "Environment: ARGO_TUNNEL_TARGET, ARGO_TUNNEL_HOST, "
+        "ARGO_TUNNEL_JUMP (or 'none'), ARGO_TUNNEL_USER, ARGO_TUNNEL_BIND, "
+        "ARGO_TUNNEL_PORT, ARGO_TUNNEL_SOCKET, ARGO_TUNNEL_CONTROL_PERSIST, "
+        "ARGO_TUNNEL_STATE_DIR."
     )
     # The connection options are accepted before *and* after the subcommand.
     # A launcher writes them once at the end of the line ("start --port N"),
@@ -724,17 +812,36 @@ def _build_parser() -> argparse.ArgumentParser:
     # :func:`_config_from_args` reads each one through ``getattr``.
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument(
+        "--target",
+        "-T",
+        default=argparse.SUPPRESS,
+        metavar="DEST",
+        help=(
+            "ssh destination to authenticate to, used verbatim: an ssh_config "
+            "alias ('homes') or a raw one ('me@homes.cels.anl.gov'). "
+            "Replaces --host/--user, and leaves the jump hop to ssh_config "
+            f"unless --jump is given (default: {DEFAULT_HOST} via "
+            f"{DEFAULT_JUMP_HOST})"
+        ),
+    )
+    common.add_argument(
         "--host",
         default=argparse.SUPPRESS,
-        help=f"machine the forward is made from (default: {DEFAULT_HOST})",
+        help=f"machine to build a destination from, when no --target is given (default: {DEFAULT_HOST})",
     )
     common.add_argument(
         "--jump",
         default=argparse.SUPPRESS,
-        help=f"externally reachable hop, or 'none' (default: {DEFAULT_JUMP_HOST})",
+        metavar="HOP",
+        help=(
+            "externally reachable hop, or 'none' for a direct connection; "
+            "with --target, omitting it leaves ssh_config's ProxyJump alone"
+        ),
     )
     common.add_argument(
-        "--user", default=argparse.SUPPRESS, help="account name on both hops"
+        "--user",
+        default=argparse.SUPPRESS,
+        help="account name for a built destination (not applied to --target)",
     )
     common.add_argument(
         "--bind",
@@ -826,10 +933,14 @@ def _config_from_args(args: argparse.Namespace) -> TunnelConfig:
     """
     config = TunnelConfig.from_env()
     overrides: dict[str, Any] = {}
+    if target := getattr(args, "target", None):
+        overrides["target"] = target
     if host := getattr(args, "host", None):
         overrides["host"] = host
     if jump := getattr(args, "jump", None):
-        overrides["jump"] = None if jump.lower() == "none" else jump
+        direct = jump.lower() == "none"
+        overrides["jump"] = None if direct else jump
+        overrides["no_jump"] = direct
     if user := getattr(args, "user", None):
         overrides["user"] = user
     if bind := getattr(args, "bind", None):
@@ -886,8 +997,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "state": state,
                         "proxy_url": config.proxy_url,
                         "socket": str(config.socket),
-                        "host": config.host,
-                        "jump": config.jump,
+                        # ``target`` is the resolved ssh destination, which
+                        # is what an operator reads back to confirm what the
+                        # next ``auth`` will actually connect to.
+                        "target": config.login,
+                        "jump": config.jump_login,
                     }
                 )
             )
