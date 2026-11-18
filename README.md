@@ -17,9 +17,9 @@ catalogue; the equivalent explicit entry is `{"url": "...", "path":
 "src/llm_rosetta_shim_argo/providers"}`. The repository is public, so no
 `token_env` is needed.
 
-The same package also ships `llm-rosetta-argo-tunnel`, the SSH tunnel CLI that
-makes the endpoint reachable from outside the network — see
-[The tunnel](#the-tunnel-llm-rosetta-argo-tunnel).
+The same package also ships `argo-tunnel`, the SSH tunnel CLI that makes the
+endpoint reachable from outside the network — see
+[The tunnel](#the-tunnel-argo-tunnel).
 
 ## Shims
 
@@ -116,25 +116,30 @@ the release and pushes `dist`. An organization that downgrades action tokens to
 read-only must restore "Read and write permissions" under Settings → Actions →
 General, or the release step fails.
 
-## The tunnel (`llm-rosetta-argo-tunnel`)
+## The tunnel (`argo-tunnel`)
 
 `apps.inside.anl.gov` resolves only inside the Argonne network, and the jump
-host asks for Duo MFA on every new connection. The `llm-rosetta-argo-tunnel`
-console script owns that: one authenticated SSH master connection, one SOCKS5
+host asks for Duo MFA on every new connection. The `argo-tunnel` console
+script owns that: one authenticated SSH master connection, one SOCKS5
 forward on top of it, and a status you can branch on.
 
 ```bash
-llm-rosetta-argo-tunnel auth --target homes   # the one command that prompts for MFA
-llm-rosetta-argo-tunnel start                   # publish the SOCKS forward
-llm-rosetta-argo-tunnel proxy-url               # socks5://127.0.0.1:10801
+argo-tunnel auth me --target homes.cels.anl.gov   # the one MFA prompt
+argo-tunnel start                                      # publish the SOCKS forward
+argo-tunnel proxy-url                                  # socks5://127.0.0.1:10801
 ```
 
 No install needed — the same program is published as one file:
 
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/Oaklight/llm-rosetta-shim-argo/main/scripts/argo-tunnel.py
-python argo-tunnel.py auth --target homes
+python argo-tunnel.py auth me --target homes.cels.anl.gov
 ```
+
+`auth` takes the account name in ssh's own position, and everything else that
+ssh takes: `--key/-i` for the private key, `--config/-F` for the config file,
+`--jump/-J` for the hop. With an alias it inherits that stanza's user, key and
+route, so `argo-tunnel auth --target homes` needs no other flag.
 
 ### Which machine it connects to
 
@@ -144,15 +149,21 @@ python argo-tunnel.py auth --target homes
 |---|---|
 | `homes` | Uses your `~/.ssh/config` `Host homes` stanza — its `HostName`, `Port`, `IdentityFile`, and `ProxyJump` if it has one |
 | `me@homes.cels.anl.gov` | Connects to that, exactly as `ssh me@homes.cels.anl.gov` would |
-| *(omitted)* | Builds `homes.cels.anl.gov` through `logins.cels.anl.gov` — a documented default, not a verified fact |
+| *(omitted)* | Uses the `ssh_config` alias that maps to `homes.cels.anl.gov` if there is one; otherwise builds `homes.cels.anl.gov` through `logins.cels.anl.gov` |
 
 With a target, no `-J` is passed unless you give `--jump`: an alias normally
 carries its own `ProxyJump`, and overriding it would silently replace your
 routing with this tool's guess. `--jump none` means a direct connection.
 
-`--user` applies only to a *built* destination, never to `--target` — an alias
-carries its own user, and rewriting `homes` into `homes@homes` would
-address a host ssh has never heard of.
+`--user` is applied as the login prefix on an **explicit** target too, which is
+how ssh itself composes `me@homes`. A target that already carries a
+different account (`--user someone --target other@homes`) is refused rather
+than silently losing one of them. With no `--user`, an alias is left bare so the
+stanza's own `User` applies.
+
+When no target is given at all, a one-label `ssh_config` alias whose `HostName`
+is the default host (`Host homes` → `homes.cels.anl.gov`) is preferred over the
+bare name — that is the stanza that carries the account, the key and the route.
 
 Then point the Argo provider's `proxy` field at that URL:
 
@@ -178,7 +189,7 @@ on `127.0.0.1` and fail verification.
 
 | Command | Does | Prompts |
 |---|---|---|
-| `auth` | Opens the master connection (`ssh -M -N -f`) and keeps it for `ControlPersist` (default 8h) | yes, once |
+| `auth` | Opens the master connection (`ssh -M -N -f`), then adds the forward; reuses a live master without prompting; rolls back a master it created if the forward fails | yes, once |
 | `start` | Adds the forward to the running master (`ssh -O forward -D`); idempotent | no |
 | `stop` | Cancels the forward; the master stays authenticated | no |
 | `status` | Prints `forwarding` / `idle` / `wedged` / `absent`; exit code 0 only for `forwarding` | no |
@@ -189,8 +200,8 @@ on `127.0.0.1` and fail verification.
 
 ```json
 {"state": "forwarding", "proxy_url": "socks5://127.0.0.1:10801",
- "socket": "/home/user/.ssh/argo-tunnel-user-1a2b3c4d5e6f",
- "host": "homes.cels.anl.gov", "jump": "logins.cels.anl.gov"}
+ "socket": "/home/user/.config/llm-rosetta-gateway/tunnel/ssh-1a2b3c4d5e6f",
+ "target": "homes.cels.anl.gov", "jump": "me@logins.cels.anl.gov"}
 ```
 
 ### Where the socket lives, and how long it lasts
@@ -204,7 +215,7 @@ configuration with `ssh -G`, so whatever you set globally is what gets used:
 | lifetime | `ControlPersist` — used as given | `--control-persist` / `ARGO_TUNNEL_CONTROL_PERSIST` | `8h` |
 
 ```bash
-llm-rosetta-argo-tunnel status --json   # "socket" tells you which one is in play
+argo-tunnel status --json   # "socket" tells you which one is in play
 ```
 
 Three details worth knowing:
@@ -220,17 +231,57 @@ Three details worth knowing:
   A request that is still in flight when the master exits fails; the next
   request needs `start` again, or `auth` if the master is gone.
 - **Socket paths have a hard length limit** (`sun_path`, ~100 bytes). A deep
-  `$HOME` would silently truncate; the CLI keeps your directory but shortens
-  the file name, and falls back to `/tmp/argo-tunnel-<uid>` if even that is too
-  long.
+  `$HOME` would silently truncate; when the path it would use is too long the
+  CLI stops and asks for a shorter `--state-dir` rather than guessing one.
+- **The state directory must be `0700` and is created that way.** A missing one
+  is created on first use; an existing one with looser permissions is refused
+  with the exact `chmod 700 <dir>` to run. It is never changed automatically —
+  a directory that happens to hold other things is not this tool's to tighten.
 
 `--ssh-config FILE` reads an additional ssh config file (ssh still reads
 `~/.ssh/config` itself).
 
+### When the port is taken
+
+A bound `--port` is checked **before** `auth` runs, so a conflict costs no MFA
+prompt. The message names the address and, when the OS will say, the process
+holding it:
+
+```
+error: SOCKS port 127.0.0.1:10801 is already in use by ssh (pid=2654558)
+hint: Stop that listener. If it is an SSH master this tool no longer tracks,
+      kill its pid; otherwise pick another port with --port.
+```
+
+A listening SOCKS server is never taken as proof that the forward is this
+tool's: `status` reports `forwarding` only for a forward it recorded, and
+`wedged` when something else holds the port. `argo-tunnel` never kills a
+listener and never removes a socket it did not create.
+
+`auth` also confirms the port actually listens after `ssh -O forward` returns
+success, and reports it if it does not.
+
+Re-entering an existing tunnel is not a conflict. The record of which forward
+belongs to which socket is keyed by the socket, and changing `--target` or
+`--config` moves the socket while the forward stays where it is. In that case
+`auth` asks the master to add the forward again — `ssh -O forward` is
+idempotent — and answers `forward already up` instead of demanding a second
+Duo approval.
+
+`auth` takes an account name in ssh's position (`auth me`). A subcommand
+name there (`auth status`) is refused by name, because it would otherwise be
+read as an account called `status` and fail as a login error.
+
+`logout` closes only a master this tool can claim. The profile is the record,
+but a live `ssh -M -S <our socket>` is the same fact read from the process
+table (via `/proc`, Linux only), so a lost profile no longer leaves you unable
+to close a master that `argo-tunnel` started.
+
 ### Configuration
 
-Every command accepts `--host`, `--jump`, `--user`, `--bind`, `--port` and
-`--control-persist` before or after the subcommand, and reads the same names
+Every command accepts `--target`, `--key`, `--config`, `--proxy`, `--host`,
+`--jump`, `--user`, `--bind`, `--port`, `--control-persist` and `--state-dir`
+before or after the subcommand, and reads the same names
 from the environment as `ARGO_TUNNEL_HOST`, `ARGO_TUNNEL_JUMP`,
 `ARGO_TUNNEL_USER`, `ARGO_TUNNEL_BIND`, `ARGO_TUNNEL_PORT`,
 `ARGO_TUNNEL_SOCKET` and `ARGO_TUNNEL_CONTROL_PERSIST`. `ARGO_TUNNEL_JUMP=none`
