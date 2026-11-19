@@ -185,6 +185,24 @@ Then point the Argo provider's `proxy` field at that URL:
 hostname the TLS certificate is checked against. A local forward would answer
 on `127.0.0.1` and fail verification.
 
+### What the admin panel shows
+
+The shim ships an `auth.py` exchange beside its vendor manifest, so the Auth
+tab has a credential section for it instead of only a key box:
+
+| Panel state | Means | What the exchange checked |
+|---|---|---|
+| Connected | The account name is set and the tunnel answers | a loopback connect to the entry's SOCKS `proxy` |
+| Needs sign-in | The proxy is declared but nothing listens | the same connect, refused — the message names the URL and `argo-tunnel auth` |
+| Failing | No account name is configured | the message says to put the ANL username in the key field |
+
+The exchange declares `consumes_key`: your ANL username **is** the credential,
+so the key field stays and is not a second secret beside a minted one. It never
+starts, stops or repairs the tunnel — the gateway has no terminal and `auth`
+blocks on Duo — and it stores no record, so the install/sign-out actions are
+not offered. A deployment with no `proxy` (a host already inside the network)
+is not asked for a tunnel.
+
 ### Commands
 
 | Command | Does | Prompts |

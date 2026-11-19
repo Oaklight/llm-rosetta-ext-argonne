@@ -8,5 +8,15 @@
 logo: https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argo@c1925c14f35170aa4f839c7fb8b97de58c2d4bee/assets/argo.svg
 # A leaf inherits every field here and may override any of them.
 connection:
+  # Argo authenticates with the operator's ANL account name, and this vendor's
+  # ``auth.py`` is the exchange that says so: it declares ``consumes_key``, so
+  # the name here is the exchange's *input*, not a second credential, and the
+  # panel keeps the key field for it.  The variable is a default for a host
+  # that exports it; the provider entry's ``api_key`` wins over it.
   api_key_env: ARGO_API_KEY
   model_id_field: internal_id
+  # The credential cannot change on its own — but the tunnel underneath it can
+  # drop, and that is what this exchange watches.  A re-mint is one loopback
+  # connect, so a short interval costs nothing and the panel notices a dead
+  # forward long before the client does.
+  token_refresh_interval: 300
