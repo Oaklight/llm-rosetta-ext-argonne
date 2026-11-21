@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import Any
 
 from ...model_utils import make_alcf_model_list_transform
-from llm_rosetta.contracts.transform import (
+from ...._core_compat import (
     NamedTransform,
     default_tool_description,
     default_message_field,

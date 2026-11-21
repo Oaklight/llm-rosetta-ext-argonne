@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 
-from llm_rosetta.contracts.auth import (
+from llm_rosetta_shim_alcf.providers._core_compat import (
     AuthContext,
     AuthExchangeError,
     InteractiveSetupRequired,

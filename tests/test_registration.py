@@ -102,7 +102,7 @@ def test_a_provider_without_a_grant_asks_for_a_sign_in(
     """
     import sys
 
-    from llm_rosetta.contracts.auth import AuthContext
+    from llm_rosetta_shim_alcf.providers._core_compat import AuthContext
 
     shim = get_shim(name)
     assert shim is not None
