@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from llm_rosetta.shims import get_shim
-from llm_rosetta.shims.provider_shim import _reset_registry
+from llm_rosetta.api import get_shim, staging_registry
 
 from llm_rosetta_shim_argo import register_shims
 
@@ -14,8 +13,8 @@ _SHIMS = ("argo--messages", "argo--chat_completions", "argo--open_responses")
 
 @pytest.fixture()
 def _registered():
-    _reset_registry()  # clean registry, so only the plugin's shims are present
-    register_shims()
+    with staging_registry():  # clean registry, so only the plugin's shims are present
+        register_shims()
     yield
 
 

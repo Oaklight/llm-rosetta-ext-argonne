@@ -283,9 +283,9 @@ class TestNormalizeOpenAIResponse:
         ]
         assert result["stop_reason"] == "end_turn"
 
-        from llm_rosetta.converters.llm.messages import MessagesConverter
+        from llm_rosetta.api import get_converter_class
 
-        conv = MessagesConverter()
+        conv = get_converter_class("llm", "messages")()
         ir = conv.response_from_provider(result)
         choices = ir.get("choices", [])
         assert choices
@@ -331,9 +331,9 @@ class TestNormalizeOpenAIResponse:
         assert result["model"] == "claudeopus46"
 
         # Verify the Anthropic converter can now parse this
-        from llm_rosetta.converters.llm.messages import MessagesConverter
+        from llm_rosetta.api import get_converter_class
 
-        conv = MessagesConverter()
+        conv = get_converter_class("llm", "messages")()
         ir = conv.response_from_provider(result)
         choices = ir.get("choices", [])
         assert choices

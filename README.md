@@ -45,7 +45,7 @@ registers the `argo--*` shims automatically — no import needed in application 
 ## Usage
 
 ```python
-from llm_rosetta.shims import get_shim
+from llm_rosetta.api import get_shim
 
 shim = get_shim("argo--chat_completions")   # requires ARGO_API_KEY in the environment
 print(shim.connection.base_url)
