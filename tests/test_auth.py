@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 
-from llm_rosetta.shims.auth_exchange import AuthContext, AuthExchangeError
+from llm_rosetta.contracts.auth import AuthContext, AuthExchangeError
 
 
 class _Response:
@@ -299,7 +299,7 @@ def test_the_declared_field_is_the_account_email(asksage):
     The form is data, so a change to it is a change to the YAML — the module
     is not the home of the wording, the order, or the required flag.
     """
-    from llm_rosetta.shims.providers import load_providers_from_dir
+    from llm_rosetta.api import load_providers_from_dir
 
     root = AUTH_PATH.parents[1]
     by_name = {s.name: s for s in load_providers_from_dir(root)}

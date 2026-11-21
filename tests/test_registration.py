@@ -6,8 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from llm_rosetta.shims import get_shim, load_providers_from_dir
-from llm_rosetta.shims.provider_shim import _reset_registry
+from llm_rosetta.api import get_shim, load_providers_from_dir, staging_registry
 
 from llm_rosetta_shim_asksage import register_shims
 
@@ -34,8 +33,8 @@ _EXPECTED_HOST = "https://api.asksage.ai"
 
 @pytest.fixture()
 def _registered():
-    _reset_registry()  # clean registry, so only the plugin's shims are present
-    register_shims()
+    with staging_registry():  # clean registry, so only the plugin's shims are present
+        register_shims()
     yield
 
 
@@ -166,9 +165,8 @@ def test_the_shipped_directory_registers_every_leaf():
     manifest read as a shim — fails here rather than glowing green on a
     registry that some other call filled.
     """
-    _reset_registry()
-
-    loaded = load_providers_from_dir(_PROVIDERS)
+    with staging_registry():
+        loaded = load_providers_from_dir(_PROVIDERS)
 
     assert sorted(shim.name for shim in loaded) == sorted(_SHIMS)
     assert get_shim("asksage--embeddings") is not None
