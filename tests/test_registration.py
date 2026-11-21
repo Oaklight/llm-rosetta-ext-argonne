@@ -42,7 +42,7 @@ def _registered():
 def test_registers_asksage_shim(_registered, name, base):
     shim = get_shim(name)
     assert shim is not None
-    assert shim.base == base
+    assert shim.format == base
     assert shim.connection.base_url.startswith("https://api.asksage.ai/")
     assert shim.connection.api_key_env == "ASKSAGE_API_KEY"
 
