@@ -27,6 +27,6 @@ def register_shims() -> None:
 
     Entry point for the ``llm_rosetta.shim_providers`` group.
     """
-    from llm_rosetta.contracts.shim import load_providers_from_dir
+    from .providers._core_compat import load_providers_from_dir
 
     load_providers_from_dir(_PROVIDERS_DIR)
