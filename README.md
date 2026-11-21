@@ -40,9 +40,23 @@ https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argonne@dist/manifest.json
 https://raw.githubusercontent.com/Oaklight/llm-rosetta-shim-argonne/dist/manifest.json   (fallback)
 ```
 
+Each vendor is installed, removed and pinned on its own: `"!argonne:asksage"`
+excludes one vendor from `argonne:*`, and `"argonne:argo@0.4.1"` holds that
+version (Oaklight/llm-rosetta#1671).
+
 In a gateway that reads manifests, the older preset keys need no config edit:
 `"presets": ["alcf", "argo", "asksage"]` maps to source `argonne` with
-`install` set to the named vendors.
+`install` set to the named vendors.  `llm-rosetta-migrate --config <file>
+--write` rewrites them as `shims.install` entries.
+
+Each release record also carries the vendor's `label` and `logo`, read from its
+root `provider.yaml` (`group_label`, `logo`), so a gateway draws a vendor that
+is not installed yet.  The marks are served from this repository's `assets/`,
+pinned by tag (`@v0.4.0`, the tag that added the files), so a published
+record's mark never changes underneath it.  Replacing a mark therefore needs a
+new tag that carries the new file and a new `logo:` value in the vendor's root
+`provider.yaml` (and so a version bump for that vendor); a later release keeps
+pointing at the old tag until its `logo:` changes.
 
 Reading manifests needs a gateway that implements `shims.sources`
 (Oaklight/llm-rosetta#1660, step S2). A gateway before that loads the

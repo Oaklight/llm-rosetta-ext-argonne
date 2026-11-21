@@ -2,10 +2,13 @@
 # shares, and the mark it shows.
 # The mark is the vendor's own wordmark, cut out of the banner it publishes
 # and traced to a path -- the source is a 24px raster, so the pixels carry
-# its anti-aliasing and no font or bitmap is needed here.  The URL pins the
-# commit the mark was cut in: jsDelivr's @main copy kept serving the previous
-# cut after a purge, and a mark is content, not configuration.
-logo: https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argo@c1925c14f35170aa4f839c7fb8b97de58c2d4bee/assets/argo.svg
+# its anti-aliasing and no font or bitmap is needed here.  The URL pins this
+# repository's v0.4.0 tag, which holds the file: jsDelivr's @main copy kept
+# serving a previous cut after a purge, and a mark is content, not
+# configuration.  The per-vendor repository it was first cut in is archived.
+# Replacing the mark needs a new tag carrying the file and a new value here.
+logo: https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argonne@v0.4.0/assets/argo.svg
+group_label: Argo
 # A leaf inherits every field here and may override any of them.
 connection:
   # Argo authenticates with the operator's ANL account name, and this vendor's
