@@ -14,13 +14,17 @@ import sys
 
 import pytest
 
-from llm_rosetta.shims import get_shim
-from llm_rosetta.shims.auth_exchange import (
+from llm_rosetta.api import (
+    get_shim,
+    restore_registry,
+    snapshot_registry,
+    staging_registry,
+)
+from llm_rosetta.contracts.auth import (
     AuthContext,
     AuthExchangeError,
     InteractiveSetupRequired,
 )
-from llm_rosetta.shims.provider_shim import _reset_registry
 
 from llm_rosetta_shim_argo import register_shims
 
@@ -29,10 +33,11 @@ _SHIMS = ("argo--messages", "argo--chat_completions", "argo--open_responses")
 
 @pytest.fixture(autouse=True)
 def _registered():
-    _reset_registry()
-    register_shims()
+    saved = snapshot_registry()
+    with staging_registry():
+        register_shims()
     yield
-    _reset_registry()
+    restore_registry(saved)
 
 
 def _module():

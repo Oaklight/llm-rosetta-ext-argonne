@@ -29,7 +29,7 @@ Request-side (ir_transforms) — IR-level
   calls into sequential pairs for Gemini models through Argo.
 """
 
-from llm_rosetta.transforms import (
+from llm_rosetta.contracts.transform import (
     default_message_field,
     flatten_system_content,
     hoist_late_system_messages,

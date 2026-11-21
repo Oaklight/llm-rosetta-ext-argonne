@@ -4,18 +4,23 @@ from __future__ import annotations
 
 import pytest
 
-from llm_rosetta.shims import get_shim
-from llm_rosetta.shims.provider_shim import _reset_registry
+from llm_rosetta.api import (
+    get_shim,
+    restore_registry,
+    snapshot_registry,
+    staging_registry,
+)
 
 from llm_rosetta_shim_argo import register_shims
 
 
 @pytest.fixture(autouse=True)
 def _registered():
-    _reset_registry()
-    register_shims()
+    saved = snapshot_registry()
+    with staging_registry():
+        register_shims()
     yield
-    _reset_registry()
+    restore_registry(saved)
 
 
 def test_model_id_field_is_internal_id():

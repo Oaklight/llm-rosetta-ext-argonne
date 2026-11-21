@@ -24,8 +24,8 @@ import copy
 import json
 from typing import Any
 
-from llm_rosetta.transforms import (
-    _NamedTransform,
+from llm_rosetta.contracts.transform import (
+    NamedTransform,
     strip_fields_for_model,
 )
 
@@ -149,5 +149,5 @@ post_ir_transforms = (
     ),
 )
 pre_ir_transforms = (
-    _NamedTransform(_normalize_openai_response, "normalize_openai_response()"),
+    NamedTransform(_normalize_openai_response, "normalize_openai_response()"),
 )
