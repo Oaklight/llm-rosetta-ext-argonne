@@ -20,7 +20,7 @@ from llm_rosetta.api import (
     snapshot_registry,
     staging_registry,
 )
-from llm_rosetta.contracts.auth import (
+from llm_rosetta_shim_argo.providers._core_compat import (
     AuthContext,
     AuthExchangeError,
     InteractiveSetupRequired,
