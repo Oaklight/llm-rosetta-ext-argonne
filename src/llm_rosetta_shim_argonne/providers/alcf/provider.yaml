@@ -10,6 +10,6 @@
 # ``logo``, ``group`` and ``group_label`` describe the vendor, not a cluster:
 # without ``group`` the admin would derive one from each shim name
 # (``alcf_metis``) and show three top-level groups instead of one.
-logo: https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-alcf@main/assets/alcf.svg
+logo: https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argonne@v0.4.0/assets/alcf.svg
 group: alcf
 group_label: ALCF

@@ -1,7 +1,9 @@
 # Vendor manifest: the credential and the mark every AskSage lane shares.
 # The mark is the vendor's own owl, served from this repository so the panel
-# never reaches the vendor's host.
-logo: https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-asksage@main/assets/asksage.webp
+# never reaches the vendor's host, pinned at this repository's v0.4.0 tag
+# (the per-vendor repository it came from is archived).
+logo: https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argonne@v0.4.0/assets/asksage.webp
+group_label: AskSage
 #
 # A leaf inherits every field here and may override any of them.
 #

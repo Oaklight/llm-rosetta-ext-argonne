@@ -21,19 +21,19 @@ surface = 1
 ir = 1
 
 [vendors.alcf]
-version = "0.4.0"
+version = "0.4.1"
 maturity = "stable"
 since = "2026-11-21"
 tags = ["org:argonne", "auth:oauth", "access:institutional"]
 
 [vendors.argo]
-version = "0.4.0"
+version = "0.4.1"
 maturity = "stable"
 since = "2026-11-21"
 tags = ["org:argonne", "auth:account", "access:institutional", "network:ssh-tunnel"]
 
 [vendors.asksage]
-version = "0.4.0"
+version = "0.4.1"
 maturity = "stable"
 since = "2026-11-21"
 tags = ["org:argonne", "auth:token-exchange"]

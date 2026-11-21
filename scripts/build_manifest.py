@@ -16,7 +16,9 @@ records come from three places:
 
 * ``vendors.toml`` — each vendor's version, maturity, tags and the
   ``requires`` floor; the only file a release edits by hand;
-* the vendor's ``provider.yaml`` files — the ``shims`` list;
+* the vendor's ``provider.yaml`` files — the ``shims`` list, and the
+  display fields ``label`` / ``logo`` (``group_label`` / ``logo`` of the
+  vendor's root ``provider.yaml``, read with PyYAML);
 * the archive :mod:`build_shim_archive` builds — ``sha256`` and ``archive``.
 
 A record, once published, is never edited.  When the previous manifest
@@ -32,7 +34,10 @@ Usage::
         --previous dist-checkout/manifest.json --expect-version 0.4.0
     python scripts/build_manifest.py --check path/to/manifest.json
 
-Needs Python 3.11+ (``tomllib``); nothing outside the standard library.
+Needs Python 3.11+ (``tomllib``), PyYAML, and llm-rosetta core: the built
+manifest is validated against core's ``llm_rosetta.contracts.shim_manifest``
+(the one statement of the format, display fields included), so a rule core
+tightens fails the release here instead of costing gateways the field.
 """
 
 from __future__ import annotations
@@ -68,7 +73,40 @@ _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 _PROMOTED = re.compile(r"^core@\d+\.\d+\.\d+")
-_SHIM_NAME = re.compile(r"^[a-z0-9_]+--[a-z0-9_]+$")
+#: The shape of a shim name: a bare key (``zhipu``) or ``<prefix>--<name>``.
+#: Which vendor may publish it is :func:`shim_belongs_to` / :func:`shim_owner`.
+_SHIM_NAME = re.compile(r"^[a-z0-9_]+(--[a-z0-9_]+)?$")
+
+
+def _key_matches(name: str, key: str) -> bool:
+    """Whether *name* carries vendor *key*'s prefix: the key itself,
+    ``<key>--<name>`` or ``<key>_<lane>--<name>``."""
+    if name == key:
+        return True
+    head, sep, _ = name.partition("--")
+    return bool(sep) and (head == key or head.startswith(f"{key}_"))
+
+
+def shim_belongs_to(name: str, vendor: str) -> bool:
+    """Whether shim *name* may be published under *vendor*, on its own.
+
+    The vendor key itself (the bare chat shims moved from core: ``zhipu``,
+    ``xai``, ``qwen``, ``moonshot``), ``<vendor>--<name>``, or
+    ``<vendor>_<lane>--<name>``.  Mirrors core's
+    ``llm_rosetta.contracts.shim_manifest`` rule (Oaklight/llm-rosetta#1660 S7).
+    """
+    return _key_matches(name, vendor)
+
+
+def shim_owner(name: str, vendors: Any) -> str | None:
+    """Return the vendor of *vendors* that owns shim *name*, or ``None``.
+
+    Within one manifest the longest matching vendor key owns a name, so
+    ``kilo_free--chat_completions`` belongs to ``kilo_free`` even though it
+    also matches ``kilo_<lane>--``; ``kilo`` may not publish it.
+    """
+    matching = [key for key in vendors if _key_matches(name, key)]
+    return max(matching, key=len) if matching else None
 
 
 class ManifestError(RuntimeError):
@@ -128,6 +166,56 @@ def head_commit(root: Path) -> str:
 # ---------------------------------------------------------------------------
 
 
+#: Vendors that publish no mark (their card shows initials).  Every other
+#: vendor must yield a ``logo``, and every vendor a ``label``: a missing one is
+#: a release error, not a silently absent field (Oaklight/llm-rosetta#1671).
+NO_LOGO: frozenset[str] = frozenset()
+
+
+def vendor_display(vendor: str, root: Path) -> dict[str, str]:
+    """``label`` / ``logo`` for one vendor, from its root ``provider.yaml``.
+
+    The vendor manifest is read with a real YAML parser: ``group_label``
+    becomes ``label`` and ``logo`` stays ``logo``.  No new metadata store:
+    these are the keys the loader already reads for the panel, and the leaves
+    inherit them.
+    """
+    try:
+        import yaml
+    except ModuleNotFoundError:
+        raise ManifestError("build_manifest.py needs PyYAML (pip install pyyaml)") from None
+    path = archives.vendor_dir(vendor, root) / "provider.yaml"
+    if not path.is_file():
+        return {}
+    doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(doc, dict):
+        raise ManifestError(f"{path}: the vendor manifest is not a mapping")
+    out: dict[str, str] = {}
+    for field, key in (("label", "group_label"), ("logo", "logo")):
+        value = doc.get(key)
+        if value is not None and not isinstance(value, str):
+            raise ManifestError(f"{path}: {key} must be a string, not {type(value).__name__}")
+        if value:
+            out[field] = value
+    return out
+
+
+def display_problems(records: dict[str, dict[str, Any]]) -> list[str]:
+    """Every vendor has a label, and a logo unless :data:`NO_LOGO` lists it."""
+    problems: list[str] = []
+    for vendor, record in sorted(records.items()):
+        if not record.get("label"):
+            problems.append(f"{vendor}: no group_label in its root provider.yaml")
+        if vendor in NO_LOGO:
+            if record.get("logo"):
+                problems.append(f"{vendor}: has a logo; drop it from NO_LOGO")
+        elif not record.get("logo"):
+            problems.append(f"{vendor}: no logo in its root provider.yaml (or list it in NO_LOGO)")
+    for vendor in sorted(NO_LOGO - set(records)):
+        problems.append(f"NO_LOGO names {vendor!r}, which is not a vendor here")
+    return problems
+
+
 def vendor_record(
     vendor: str, config: dict[str, Any], data: bytes, commit: str, root: Path
 ) -> dict[str, Any]:
@@ -151,6 +239,7 @@ def vendor_record(
             "result": conformance.get("result"),
         },
         "promoted_to": entry.get("promoted_to"),
+        **vendor_display(vendor, root),
     }
 
 
@@ -196,10 +285,12 @@ def build_manifest(
         "vendors": {},
     }
     added: dict[str, bytes] = {}
+    fresh: dict[str, dict[str, Any]] = {}
     for vendor in sorted(config["vendors"]):
         data = archives.build_archive(vendor, root)
         archives.verify_archive(data, vendor, root)
         record = vendor_record(vendor, config, data, commit, root)
+        fresh[vendor] = record
         versions, is_new = merge_versions(
             vendor, record, old_vendors.get(vendor, {}).get("versions", [])
         )
@@ -209,7 +300,7 @@ def build_manifest(
     # A vendor dropped from the tree keeps its published history.
     for vendor, old in old_vendors.items():
         manifest["vendors"].setdefault(vendor, old)
-    problems = validate_manifest(manifest)
+    problems = display_problems(fresh) + validate_manifest(manifest)
     if problems:
         raise ManifestError(
             "the built manifest is invalid:\n  " + "\n  ".join(problems)
@@ -238,7 +329,7 @@ def _check_record(vendor: str, index: int, rec: Any) -> list[str]:
     missing = expected - set(rec)
     if missing:
         problems.append(f"{where}: missing {sorted(missing)}")
-    extra = set(rec) - expected
+    extra = set(rec) - expected - {"label", "logo"}
     if extra:
         problems.append(f"{where}: unknown keys {sorted(extra)}")
     version = rec.get("version")
@@ -270,9 +361,10 @@ def _check_record(vendor: str, index: int, rec: Any) -> list[str]:
         problems.append(
             f"{where}.shims: must be a non-empty list of distinct shim names"
         )
-    elif not all(s.startswith(vendor) for s in shims):
+    elif not all(shim_belongs_to(s, vendor) for s in shims):
         problems.append(
-            f"{where}.shims: every name must start with the vendor {vendor!r}"
+            f"{where}.shims: every name must be {vendor!r}, '{vendor}--<name>' "
+            f"or '{vendor}_<lane>--<name>'"
         )
     tags = rec.get("tags")
     if not isinstance(tags, list) or not all(isinstance(t, str) and t for t in tags):
@@ -305,8 +397,34 @@ def _check_record(vendor: str, index: int, rec: Any) -> list[str]:
     return problems
 
 
+def core_problems(doc: Any) -> list[str]:
+    """What core's ``llm_rosetta.contracts.shim_manifest`` says about *doc*.
+
+    Core states the format once, the optional ``label`` / ``logo`` included;
+    the builder keeps no copy of those rules.
+    """
+    try:
+        from llm_rosetta.contracts.shim_manifest import validate_manifest as core_validate
+    except ModuleNotFoundError:
+        return [
+            "llm-rosetta core is not importable; install it to validate against "
+            "llm_rosetta.contracts.shim_manifest"
+        ]
+    return [f"core schema: {problem}" for problem in core_validate(doc)]
+
+
 def validate_manifest(doc: Any) -> list[str]:
-    """Return every way *doc* departs from manifest v1; empty when it conforms."""
+    """Return every way *doc* departs from manifest v1; empty when it conforms.
+
+    The builder's structural rules (the record shape this repository writes)
+    and core's schema (:func:`core_problems`) both apply.
+    """
+    problems = _structural_problems(doc)
+    return problems + (core_problems(doc) if not problems else [])
+
+
+def _structural_problems(doc: Any) -> list[str]:
+    """The record shape this builder writes, checked without core."""
     if not isinstance(doc, dict):
         return ["the manifest must be a JSON object"]
     problems: list[str] = []
@@ -342,6 +460,16 @@ def validate_manifest(doc: Any) -> list[str]:
             continue
         for index, rec in enumerate(versions):
             problems.extend(_check_record(vendor, index, rec))
+            names = rec.get("shims") if isinstance(rec, dict) else None
+            for name in names if isinstance(names, list) else ():
+                if not isinstance(name, str) or not shim_belongs_to(name, vendor):
+                    continue  # reported by _check_record
+                owner = shim_owner(name, vendors)
+                if owner != vendor:
+                    problems.append(
+                        f"vendors.{vendor}.versions[{index}].shims: {name!r} "
+                        f"belongs to vendor {owner!r} of this manifest"
+                    )
         numbers = [r.get("version") for r in versions if isinstance(r, dict)]
         if all(isinstance(n, str) and _VERSION.match(n) for n in numbers):
             if len(set(numbers)) != len(numbers):
