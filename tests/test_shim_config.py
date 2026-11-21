@@ -69,7 +69,7 @@ def test_responses_profile_traits():
 def test_chat_shim_declares_tool_description_limit():
     shim = get_shim("argo--chat_completions")
     assert shim is not None
-    assert shim.max_tool_description_length == 1024
+    assert shim.tools.max_description_length == 1024
 
 
 def test_messages_shim_declares_soft_error_patterns():
