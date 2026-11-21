@@ -14,8 +14,8 @@ from __future__ import annotations
 from typing import Any
 
 from ...model_utils import make_alcf_model_list_transform
-from llm_rosetta.transforms import (
-    _NamedTransform,
+from llm_rosetta.contracts.transform import (
+    NamedTransform,
     default_tool_description,
     default_message_field,
     hoist_late_system_messages,
@@ -58,7 +58,7 @@ post_ir_transforms = (
     default_message_field("content", ""),
     default_tool_description(),
 )
-pre_ir_transforms = (_NamedTransform(_rename_reasoning_field, "rename_reasoning()"),)
+pre_ir_transforms = (NamedTransform(_rename_reasoning_field, "rename_reasoning()"),)
 ir_transforms = (hoist_late_system_messages(),)
 
 model_list_transform = make_alcf_model_list_transform("vllm")

@@ -22,7 +22,7 @@ classifiers = [
 # that file ("a vendor manifest may declare only a 'connection:' block"), which
 # would take the whole package down with it.  A final release sorts above its
 # dev releases, so 0.14.0 satisfies this floor too.
-dependencies = ["llm-rosetta>=0.14.0.dev31"]
+dependencies = ["llm-rosetta>=0.14.0.dev35"]
 
 [project.urls]
 Repository = "https://github.com/Oaklight/llm-rosetta-shim-alcf"

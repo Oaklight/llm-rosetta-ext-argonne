@@ -8,7 +8,7 @@ every later mint, without a browser.
 That is an OAuth profile, not an argv: the first run needs a browser, what is
 kept is a record rather than a string, and the refresh token rotates.  So the
 exchange is code, shipped beside the shim's ``provider.yaml`` and reached
-through :class:`llm_rosetta.shims.auth_exchange.AuthExchange` — the gateway
+through :class:`llm_rosetta.contracts.auth.AuthExchange` — the gateway
 only decides *when* to ask for a credential.
 
 Two properties shape the module:
@@ -49,7 +49,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
 
-from llm_rosetta.shims.auth_exchange import (
+from llm_rosetta.contracts.auth import (
     AuthContext,
     AuthExchangeError,
     BaseAuthExchange,

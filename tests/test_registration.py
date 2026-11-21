@@ -7,8 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from llm_rosetta.shims import get_shim
-from llm_rosetta.shims.provider_shim import _reset_registry
+from llm_rosetta.api import get_shim, staging_registry
 
 from llm_rosetta_shim_alcf import register_shims
 
@@ -37,8 +36,8 @@ def _provider_config(cluster: str) -> dict:
 
 @pytest.fixture()
 def _registered():
-    _reset_registry()  # clean registry, so only the plugin's shims are present
-    register_shims()
+    with staging_registry():  # clean registry, so only the plugin's shims are present
+        register_shims()
     yield
 
 
@@ -103,7 +102,7 @@ def test_a_provider_without_a_grant_asks_for_a_sign_in(
     """
     import sys
 
-    from llm_rosetta.shims.auth_exchange import AuthContext
+    from llm_rosetta.contracts.auth import AuthContext
 
     shim = get_shim(name)
     assert shim is not None

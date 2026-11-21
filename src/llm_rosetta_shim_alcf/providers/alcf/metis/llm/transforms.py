@@ -7,7 +7,7 @@ and ``parallel_tool_calls`` to avoid 400 errors.  Downgrade the
 """
 
 from ...model_utils import make_alcf_model_list_transform
-from llm_rosetta.transforms import (
+from llm_rosetta.contracts.transform import (
     default_tool_description,
     default_message_field,
     hoist_late_system_messages,
