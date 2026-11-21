@@ -1,7 +1,7 @@
-"""The release archive carries exactly the ``providers/`` tree the package ships.
+"""The argo release archive carries exactly the vendor tree the package ships.
 
-A mirror that extracts to the wrong shape is worse than no mirror: nothing
-loads and the failure surfaces far from the build.  These tests hold the build
+An archive that extracts to the wrong shape is worse than none: nothing loads
+and the failure surfaces far from the build.  These tests hold the build
 script to its layout check, to determinism and to the digest format.
 """
 
@@ -11,25 +11,29 @@ import importlib.util
 import io
 import shutil
 import subprocess
+import sys
 import tarfile
 from pathlib import Path
 
 import pytest
 
-_SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "build_shim_archive.py"
-_PACKAGE = "llm_rosetta_shim_argo"
+_SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
+_VENDOR = "argo"
 
 
 def _load_script():
-    spec = importlib.util.spec_from_file_location("build_shim_archive", _SCRIPT)
+    spec = importlib.util.spec_from_file_location(
+        "build_shim_archive", _SCRIPTS / "build_shim_archive.py"
+    )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
+    sys.modules.setdefault("build_shim_archive", module)
     spec.loader.exec_module(module)
     return module
 
 
 archive = _load_script()
-PROVIDERS = archive.providers_dir()
+VENDOR_DIR = archive.vendor_dir(_VENDOR)
 
 
 def _repack(data: bytes, *, add: str | None = None, drop: str | None = None) -> bytes:
@@ -51,51 +55,65 @@ def _repack(data: bytes, *, add: str | None = None, drop: str | None = None) -> 
     return out.getvalue()
 
 
-def test_the_shim_name_matches_the_package():
-    assert archive.shim_name() == "argo"
-    assert archive.package_dir().name == _PACKAGE
+def test_the_vendor_is_one_the_package_ships():
+    assert _VENDOR in archive.vendors()
+    assert archive.package_dir().name == "llm_rosetta_shim_argonne"
 
 
 def test_the_archive_root_is_providers():
-    data = archive.build_archive(PROVIDERS)
+    data = archive.build_archive(_VENDOR)
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
         names = [m.name for m in tar.getmembers()]
     assert names[0] == "providers"
     assert all(name == "providers" or name.startswith("providers/") for name in names)
 
 
-def test_the_archive_carries_every_shipped_file_and_nothing_else():
-    data = archive.build_archive(PROVIDERS)
-    expected = {f"providers/{path}" for path in archive.shipped_files(PROVIDERS)}
+def test_the_archive_carries_the_vendor_tree_and_its_shims_file_only():
+    data = archive.build_archive(_VENDOR)
+    expected = {
+        f"providers/{_VENDOR}/{path}" for path in archive.shipped_files(VENDOR_DIR)
+    }
+    expected.add("providers/shims.yaml")
     assert set(archive.archive_members(data)) == expected
 
 
+def test_the_shims_file_lists_exactly_this_vendors_leaves():
+    text = archive.vendor_shims_file(_VENDOR).decode()
+    names = [
+        line.split(":", 1)[1].strip() for line in text.splitlines() if "name:" in line
+    ]
+    assert names and sorted(names) == sorted(
+        n for n, _ in archive.declared_shims(_VENDOR)
+    )
+
+
 def test_the_build_is_deterministic():
-    assert archive.build_archive(PROVIDERS) == archive.build_archive(PROVIDERS)
+    assert archive.build_archive(_VENDOR) == archive.build_archive(_VENDOR)
 
 
 def test_the_verified_archive_passes_its_own_check():
-    data = archive.build_archive(PROVIDERS)
-    archive.verify_archive(data, PROVIDERS)
+    archive.verify_archive(archive.build_archive(_VENDOR), _VENDOR)
 
 
 def test_an_extra_member_fails_the_layout_check():
-    data = _repack(archive.build_archive(PROVIDERS), add="providers/stray.yaml")
+    data = _repack(
+        archive.build_archive(_VENDOR), add=f"providers/{_VENDOR}/stray.yaml"
+    )
     with pytest.raises(archive.ArchiveError, match="extra"):
-        archive.verify_archive(data, PROVIDERS)
+        archive.verify_archive(data, _VENDOR)
 
 
 def test_a_missing_member_fails_the_layout_check():
-    data = archive.build_archive(PROVIDERS)
+    data = archive.build_archive(_VENDOR)
     first = archive.archive_members(data)[0]
     with pytest.raises(archive.ArchiveError, match="missing"):
-        archive.verify_archive(_repack(data, drop=first), PROVIDERS)
+        archive.verify_archive(_repack(data, drop=first), _VENDOR)
 
 
 def test_a_member_outside_the_root_fails_the_layout_check():
-    data = _repack(archive.build_archive(PROVIDERS), add="elsewhere/provider.yaml")
+    data = _repack(archive.build_archive(_VENDOR), add="elsewhere/provider.yaml")
     with pytest.raises(archive.ArchiveError, match="outside providers/"):
-        archive.verify_archive(data, PROVIDERS)
+        archive.verify_archive(data, _VENDOR)
 
 
 def test_bytecode_caches_stay_out(tmp_path: Path):
@@ -109,8 +127,8 @@ def test_bytecode_caches_stay_out(tmp_path: Path):
 
 @pytest.mark.skipif(shutil.which("sha256sum") is None, reason="no sha256sum")
 def test_the_digest_file_verifies_with_sha256sum(tmp_path: Path):
-    data = archive.build_archive(PROVIDERS)
-    name = f"{archive.shim_name()}.tar.gz"
+    data = archive.build_archive(_VENDOR)
+    name = f"{_VENDOR}.tar.gz"
     (tmp_path / name).write_bytes(data)
     (tmp_path / f"{name}.sha256").write_text(archive.digest_file_line(data, name))
 
