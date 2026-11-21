@@ -13,7 +13,10 @@ from typing import Any
 
 import pytest
 
-from llm_rosetta.contracts.auth import AuthContext, AuthExchangeError
+from llm_rosetta_shim_asksage.providers._core_compat import (
+    AuthContext,
+    AuthExchangeError,
+)
 
 
 class _Response:

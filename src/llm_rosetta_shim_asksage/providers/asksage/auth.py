@@ -46,11 +46,21 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from llm_rosetta.contracts.auth import (
-    AuthContext,
-    AuthExchangeError,
-    BaseAuthExchange,
-)
+# A core before 0.14.0.dev35 keeps these names elsewhere.  The loader runs
+# this file as a top-level module, so the bridge is inline rather than in
+# providers/_core_compat.py; remove it with that module (0.15.0 at the latest).
+try:
+    from llm_rosetta.contracts.auth import (
+        AuthContext,
+        AuthExchangeError,
+        BaseAuthExchange,
+    )
+except ImportError:  # a core before 0.14.0.dev35
+    from llm_rosetta.shims.auth_exchange import (  # type: ignore[no-redef]
+        AuthContext,
+        AuthExchangeError,
+        BaseAuthExchange,
+    )
 
 #: The deployment the shim's ``base_url`` points at when the operator sets
 #: none; only used to make the "no base_url" error actionable.
