@@ -13,10 +13,7 @@ from typing import Any
 
 import pytest
 
-from llm_rosetta_shim_asksage.providers._core_compat import (
-    AuthContext,
-    AuthExchangeError,
-)
+from llm_rosetta.contracts.auth import AuthContext, AuthExchangeError
 
 
 class _Response:
@@ -36,9 +33,9 @@ class _Response:
 
 
 AUTH_PATH = (
-    Path(__file__).resolve().parents[1]
+    Path(__file__).resolve().parents[2]
     / "src"
-    / "llm_rosetta_shim_asksage"
+    / "llm_rosetta_shim_argonne"
     / "providers"
     / "asksage"
     / "auth.py"
@@ -305,7 +302,7 @@ def test_the_declared_field_is_the_account_email(asksage):
     from llm_rosetta.api import load_providers_from_dir
 
     root = AUTH_PATH.parents[1]
-    by_name = {s.name: s for s in load_providers_from_dir(root)}
+    by_name = {s.name: s for s in load_providers_from_dir(root, only_paths=["asksage"])}
 
     for shim in by_name.values():
         (field,) = shim.fields

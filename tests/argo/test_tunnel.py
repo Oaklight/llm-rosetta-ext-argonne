@@ -18,7 +18,7 @@ from typing import Sequence
 
 import pytest
 
-from llm_rosetta_shim_argo.tunnel import (
+from llm_rosetta_shim_argonne.tunnel import (
     SSH_FAILURE,
     Tunnel,
     TunnelConfig,
@@ -37,9 +37,9 @@ from llm_rosetta_shim_argo.tunnel import (
 def _hermetic_ssh(monkeypatch, tmp_path_factory):
     """Keep the suite off the host's ssh config, its listening sockets and its
     real state directory (``~/.config/llm-rosetta-gateway``)."""
-    monkeypatch.setattr("llm_rosetta_shim_argo.tunnel._ssh_g", lambda *a, **k: {})
-    monkeypatch.setattr("llm_rosetta_shim_argo.tunnel._SSH_G_CACHE", {})
-    monkeypatch.setattr("llm_rosetta_shim_argo.tunnel.listener_owner", lambda *a: None)
+    monkeypatch.setattr("llm_rosetta_shim_argonne.tunnel._ssh_g", lambda *a, **k: {})
+    monkeypatch.setattr("llm_rosetta_shim_argonne.tunnel._SSH_G_CACHE", {})
+    monkeypatch.setattr("llm_rosetta_shim_argonne.tunnel.listener_owner", lambda *a: None)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("config")))
 
 
@@ -168,7 +168,7 @@ def test_a_default_run_prefers_the_stanza_that_maps_to_the_default_host(monkeypa
     """An Argonne account reaches the host through its own ``Host homes``
     stanza; addressing the bare name would skip the route and the key."""
     monkeypatch.setattr(
-        "llm_rosetta_shim_argo.tunnel._ssh_g",
+        "llm_rosetta_shim_argonne.tunnel._ssh_g",
         lambda config, name: (
             {"hostname": ["homes.cels.anl.gov"], "user": ["me"]}
             if name == "homes"
@@ -275,7 +275,7 @@ def test_cli_jump_none_is_a_decision_not_an_absence():
 def _with_ssh_g(monkeypatch, values: dict[str, str]) -> None:
     """Pin what ``ssh -G`` reports, so the placement tests never touch ssh."""
     monkeypatch.setattr(
-        "llm_rosetta_shim_argo.tunnel._resolved_ssh_config", lambda config: dict(values)
+        "llm_rosetta_shim_argonne.tunnel._resolved_ssh_config", lambda config: dict(values)
     )
 
 
@@ -626,7 +626,7 @@ def test_cli_proxy_url_needs_no_ssh(capsys):
 
 def test_cli_status_exits_non_zero_unless_forwarding(monkeypatch, capsys):
     monkeypatch.setattr(
-        "llm_rosetta_shim_argo.tunnel.run_subprocess", FakeRunner([_absent_check()])
+        "llm_rosetta_shim_argonne.tunnel.run_subprocess", FakeRunner([_absent_check()])
     )
     assert main(["status"]) == 1
     assert "absent" in capsys.readouterr().out
@@ -634,7 +634,7 @@ def test_cli_status_exits_non_zero_unless_forwarding(monkeypatch, capsys):
 
 def test_cli_status_json_shape(monkeypatch, capsys):
     monkeypatch.setattr(
-        "llm_rosetta_shim_argo.tunnel.run_subprocess", FakeRunner([_absent_check()])
+        "llm_rosetta_shim_argonne.tunnel.run_subprocess", FakeRunner([_absent_check()])
     )
     assert main(["status", "--json"]) == 1
     payload = json.loads(capsys.readouterr().out)
@@ -653,12 +653,12 @@ def test_an_option_before_the_subcommand_is_not_overwritten_by_it(capsys):
 
 def test_json_reads_the_same_state_in_either_position(monkeypatch, capsys):
     monkeypatch.setattr(
-        "llm_rosetta_shim_argo.tunnel.run_subprocess", FakeRunner([_absent_check()])
+        "llm_rosetta_shim_argonne.tunnel.run_subprocess", FakeRunner([_absent_check()])
     )
     assert main(["status", "--json", "--port", "10999"]) == 1
     first = json.loads(capsys.readouterr().out)
     monkeypatch.setattr(
-        "llm_rosetta_shim_argo.tunnel.run_subprocess", FakeRunner([_absent_check()])
+        "llm_rosetta_shim_argonne.tunnel.run_subprocess", FakeRunner([_absent_check()])
     )
     assert main(["--json", "--port", "10999", "status"]) == 1
     second = json.loads(capsys.readouterr().out)
@@ -732,7 +732,7 @@ def test_proxy_names_a_jump_host_not_a_socks_url(capsys):
 
 def test_cli_prints_the_hint_on_a_refused_action(monkeypatch, capsys):
     monkeypatch.setattr(
-        "llm_rosetta_shim_argo.tunnel.run_subprocess", FakeRunner([_absent_check()])
+        "llm_rosetta_shim_argonne.tunnel.run_subprocess", FakeRunner([_absent_check()])
     )
     assert main(["start"]) == 1
     err = capsys.readouterr().err

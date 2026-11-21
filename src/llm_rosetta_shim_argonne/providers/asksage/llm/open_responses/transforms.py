@@ -8,7 +8,7 @@ References:
     https://docs.asksage.ai/api-documentation/api-endpoints/
 """
 
-from ...._core_compat import rename_field
+from llm_rosetta.contracts.transform import rename_field
 
 post_ir_transforms = (rename_field("max_tokens", "max_completion_tokens"),)
 pre_ir_transforms = ()

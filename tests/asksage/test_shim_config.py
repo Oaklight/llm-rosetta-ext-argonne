@@ -11,7 +11,7 @@ from llm_rosetta.api import (
     staging_registry,
 )
 
-from llm_rosetta_shim_asksage import register_shims
+from llm_rosetta_shim_argonne import register_asksage as register_shims
 
 SHIMS = (
     "asksage--chat_completions",

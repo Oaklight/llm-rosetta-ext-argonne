@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-_SCRIPT = Path(__file__).resolve().parents[1] / "src/llm_rosetta_shim_argo/tunnel.py"
+_SCRIPT = Path(__file__).resolve().parents[2] / "src/llm_rosetta_shim_argonne/tunnel.py"
 
 
 def _port():

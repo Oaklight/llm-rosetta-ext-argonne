@@ -6,7 +6,7 @@ import pytest
 
 from llm_rosetta.api import get_shim, staging_registry
 
-from llm_rosetta_shim_argo import register_shims
+from llm_rosetta_shim_argonne import register_argo as register_shims
 
 _SHIMS = ("argo--messages", "argo--chat_completions", "argo--open_responses")
 

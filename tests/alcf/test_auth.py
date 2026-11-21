@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 
-from llm_rosetta_shim_alcf.providers._core_compat import (
+from llm_rosetta.contracts.auth import (
     AuthContext,
     AuthExchangeError,
     InteractiveSetupRequired,
@@ -19,9 +19,9 @@ from llm_rosetta_shim_alcf.providers._core_compat import (
 
 
 AUTH_PATH = (
-    Path(__file__).resolve().parents[1]
+    Path(__file__).resolve().parents[2]
     / "src"
-    / "llm_rosetta_shim_alcf"
+    / "llm_rosetta_shim_argonne"
     / "providers"
     / "alcf"
     / "auth.py"
