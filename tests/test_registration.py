@@ -45,7 +45,7 @@ def _registered():
 def test_registers_alcf_shim(_registered, name):
     shim = get_shim(name)
     assert shim is not None
-    assert shim.base == "chat_completions"
+    assert shim.format == "chat_completions"
     assert shim.connection.base_url.startswith(
         "https://inference-api.alcf.anl.gov/resource_server/"
     )
