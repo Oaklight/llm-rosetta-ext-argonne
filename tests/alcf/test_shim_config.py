@@ -11,7 +11,7 @@ from llm_rosetta.api import (
     staging_registry,
 )
 
-from llm_rosetta_shim_alcf import register_shims
+from llm_rosetta_shim_argonne import register_alcf as register_shims
 
 
 def apply_transforms(transforms, body):
@@ -76,7 +76,7 @@ def test_sophia_renames_reasoning_on_message_and_delta():
 
 @pytest.mark.parametrize("name", SHIMS)
 def test_model_list_transform_is_exported(name):
-    from llm_rosetta_shim_alcf.providers.alcf import model_utils
+    from llm_rosetta_shim_argonne.providers.alcf import model_utils
 
     assert callable(model_utils.make_alcf_model_list_transform)
 

@@ -8,13 +8,13 @@ import pytest
 
 from llm_rosetta.api import get_shim, load_providers_from_dir, staging_registry
 
-from llm_rosetta_shim_asksage import register_shims
+from llm_rosetta_shim_argonne import register_asksage as register_shims
 
 #: The directory the package ships and the entry point loads.
 _PROVIDERS = (
-    Path(__file__).resolve().parents[1]
+    Path(__file__).resolve().parents[2]
     / "src"
-    / "llm_rosetta_shim_asksage"
+    / "llm_rosetta_shim_argonne"
     / "providers"
 )
 
@@ -166,7 +166,7 @@ def test_the_shipped_directory_registers_every_leaf():
     registry that some other call filled.
     """
     with staging_registry():
-        loaded = load_providers_from_dir(_PROVIDERS)
+        loaded = load_providers_from_dir(_PROVIDERS, only_paths=["asksage"])
 
     assert sorted(shim.name for shim in loaded) == sorted(_SHIMS)
     assert get_shim("asksage--embeddings") is not None

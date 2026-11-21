@@ -11,7 +11,7 @@ The Responses path is otherwise simpler than Chat — role downgrade, content
 defaulting, and system flattening do not apply.
 """
 
-from ...._core_compat import strip_fields_for_model
+from llm_rosetta.contracts.transform import strip_fields_for_model
 
 from ...model_utils import model_list_transform  # noqa: F401
 

@@ -24,7 +24,7 @@ import copy
 import json
 from typing import Any
 
-from ...._core_compat import (
+from llm_rosetta.contracts.transform import (
     NamedTransform,
     strip_fields_for_model,
 )

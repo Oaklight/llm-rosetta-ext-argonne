@@ -9,7 +9,7 @@ import yaml
 
 from llm_rosetta.api import get_shim, staging_registry
 
-from llm_rosetta_shim_alcf import register_shims
+from llm_rosetta_shim_argonne import register_alcf as register_shims
 
 _CLUSTERS = ("metis", "minerva", "sophia")
 _SHIMS = tuple(f"alcf_{cluster}--chat_completions" for cluster in _CLUSTERS)
@@ -20,9 +20,9 @@ _GROUP = "alcf"
 _DISPLAY_NAMES = {"metis", "minerva", "sophia"}
 
 _PROVIDERS_DIR = (
-    Path(__file__).resolve().parents[1]
+    Path(__file__).resolve().parents[2]
     / "src"
-    / "llm_rosetta_shim_alcf"
+    / "llm_rosetta_shim_argonne"
     / "providers"
     / "alcf"
 )
@@ -102,7 +102,7 @@ def test_a_provider_without_a_grant_asks_for_a_sign_in(
     """
     import sys
 
-    from llm_rosetta_shim_alcf.providers._core_compat import AuthContext
+    from llm_rosetta.contracts.auth import AuthContext
 
     shim = get_shim(name)
     assert shim is not None

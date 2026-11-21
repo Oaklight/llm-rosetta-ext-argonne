@@ -11,7 +11,7 @@ Single file on purpose
 This module imports only the standard library and nothing else from this
 package, so it can be fetched and run without installing anything::
 
-    curl -fsSLO https://raw.githubusercontent.com/Oaklight/llm-rosetta-shim-argo/main/scripts/argo-tunnel.py
+    curl -fsSLO https://raw.githubusercontent.com/Oaklight/llm-rosetta-shim-argonne/main/scripts/argo-tunnel.py
     python argo-tunnel.py auth pding --target lambda5.cels.anl.gov
 
 That copy is generated from this file by ``scripts/sync_cli_script.py`` and a

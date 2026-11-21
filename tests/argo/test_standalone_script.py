@@ -16,9 +16,9 @@ from pathlib import Path
 
 import pytest
 
-_REPO = Path(__file__).resolve().parents[1]
+_REPO = Path(__file__).resolve().parents[2]
 _SCRIPT = _REPO / "scripts" / "argo-tunnel.py"
-_SOURCE = _REPO / "src" / "llm_rosetta_shim_argo" / "tunnel.py"
+_SOURCE = _REPO / "src" / "llm_rosetta_shim_argonne" / "tunnel.py"
 
 
 def test_the_copy_is_regenerated_when_the_module_changes():
@@ -45,7 +45,7 @@ def test_the_copy_carries_no_package_import():
 
 def test_the_copy_names_where_it_came_from():
     first = _SCRIPT.read_text().splitlines()[1]
-    assert "src/llm_rosetta_shim_argo/tunnel.py" in first
+    assert "src/llm_rosetta_shim_argonne/tunnel.py" in first
 
 
 @pytest.mark.parametrize("argv", [["proxy-url", "--port", "43210"]])
