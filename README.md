@@ -51,12 +51,10 @@ In a gateway that reads manifests, the older preset keys need no config edit:
 
 Each release record also carries the vendor's `label` and `logo`, read from its
 root `provider.yaml` (`group_label`, `logo`), so a gateway draws a vendor that
-is not installed yet.  The marks are served from this repository's `assets/`,
-pinned by tag (`@v0.4.0`, the tag that added the files), so a published
-record's mark never changes underneath it.  Replacing a mark therefore needs a
-new tag that carries the new file and a new `logo:` value in the vendor's root
-`provider.yaml` (and so a version bump for that vendor); a later release keeps
-pointing at the old tag until its `logo:` changes.
+is not installed yet.  The marks are served from this repository's `assets/` on the `main` branch
+(`@main`), so a mark is always the one committed there.  Replacing a mark means
+committing the new file under `assets/`; jsDelivr caches `@main` files, so purge
+the file's URL after the change.
 
 Reading manifests needs a gateway that implements `shims.sources`
 (Oaklight/llm-rosetta#1660, step S2). A gateway before that loads the
