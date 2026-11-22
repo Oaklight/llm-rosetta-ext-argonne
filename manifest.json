@@ -1,0 +1,109 @@
+{
+  "manifest_version": 1,
+  "source": "argonne",
+  "repo": "https://github.com/Oaklight/llm-rosetta-shim-argonne",
+  "generated_at": "2026-11-22T23:19:51Z",
+  "vendors": {
+    "alcf": {
+      "versions": [
+        {
+          "version": "0.4.1",
+          "commit": "f3ed511a11c15e6e87c9174c8f228056b9f90a70",
+          "archive": "0.4.1/alcf.tar.gz",
+          "sha256": "d2be47e646a2fc6004dbbde9f0cbbcc46833db9d062761b06662c890424d97b7",
+          "requires": {
+            "surface": 1,
+            "ir": 1
+          },
+          "shims": [
+            "alcf_metis--chat_completions",
+            "alcf_minerva--chat_completions",
+            "alcf_sophia--chat_completions"
+          ],
+          "tags": [
+            "org:argonne",
+            "auth:oauth",
+            "access:institutional"
+          ],
+          "maturity": "stable",
+          "since": "2026-11-21",
+          "conformance": {
+            "date": null,
+            "result": "none"
+          },
+          "promoted_to": null,
+          "label": "ALCF",
+          "logo": "https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argonne@main/assets/alcf.svg"
+        }
+      ]
+    },
+    "argo": {
+      "versions": [
+        {
+          "version": "0.4.1",
+          "commit": "f3ed511a11c15e6e87c9174c8f228056b9f90a70",
+          "archive": "0.4.1/argo.tar.gz",
+          "sha256": "d2c2044e1fe2860ddc55d1e8b09e31d57c0fd500fe6fbe4423fa5a34b0e58cd6",
+          "requires": {
+            "surface": 1,
+            "ir": 1
+          },
+          "shims": [
+            "argo--chat_completions",
+            "argo--messages",
+            "argo--open_responses"
+          ],
+          "tags": [
+            "org:argonne",
+            "auth:account",
+            "access:institutional",
+            "network:ssh-tunnel"
+          ],
+          "maturity": "stable",
+          "since": "2026-11-21",
+          "conformance": {
+            "date": null,
+            "result": "none"
+          },
+          "promoted_to": null,
+          "label": "Argo",
+          "logo": "https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argonne@main/assets/argo.svg"
+        }
+      ]
+    },
+    "asksage": {
+      "versions": [
+        {
+          "version": "0.4.1",
+          "commit": "f3ed511a11c15e6e87c9174c8f228056b9f90a70",
+          "archive": "0.4.1/asksage.tar.gz",
+          "sha256": "77f8127618757ad81a9f8dcd3cc54472fcb023df805f1c99828dae9df8b84a0d",
+          "requires": {
+            "surface": 1,
+            "ir": 1
+          },
+          "shims": [
+            "asksage--embeddings",
+            "asksage--chat_completions",
+            "asksage--google_generate",
+            "asksage--messages",
+            "asksage--open_responses"
+          ],
+          "tags": [
+            "org:argonne",
+            "auth:token-exchange"
+          ],
+          "maturity": "stable",
+          "since": "2026-11-21",
+          "conformance": {
+            "date": null,
+            "result": "none"
+          },
+          "promoted_to": null,
+          "label": "AskSage",
+          "logo": "https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argonne@main/assets/asksage.webp"
+        }
+      ]
+    }
+  }
+}
