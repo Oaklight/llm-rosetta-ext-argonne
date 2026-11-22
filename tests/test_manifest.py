@@ -229,9 +229,9 @@ def test_the_validator_refuses_a_wrong_manifest_version():
 
 #: What each vendor's provider.yaml publishes as its display fields.
 EXPECTED_DISPLAY = {
-    "alcf": {"label": "ALCF", "logo": "https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argonne@v0.4.0/assets/alcf.svg"},
-    "argo": {"label": "Argo", "logo": "https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argonne@v0.4.0/assets/argo.svg"},
-    "asksage": {"label": "AskSage", "logo": "https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argonne@v0.4.0/assets/asksage.webp"},
+    "alcf": {"label": "ALCF", "logo": "https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argonne@main/assets/alcf.svg"},
+    "argo": {"label": "Argo", "logo": "https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argonne@main/assets/argo.svg"},
+    "asksage": {"label": "AskSage", "logo": "https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argonne@main/assets/asksage.webp"},
 }
 #: Per-vendor repositories that are archived; no mark may point at them.
 ARCHIVED = ("llm-rosetta-shim-argo@", "llm-rosetta-shim-alcf", "llm-rosetta-shim-asksage")
@@ -253,8 +253,9 @@ def test_every_vendor_record_carries_its_label_and_logo_from_provider_yaml():
     for entry in manifest["vendors"].values():
         logo = entry["versions"][0].get("logo")
         if logo:
-            # Pinned: an immutable record's mark cannot change underneath it.
-            assert "@latest" not in logo and "@main" not in logo, logo
+            # A mark follows this repository's main branch or a third-party
+            # package pinned to a version; ``@latest`` floats with no owner.
+            assert "@latest" not in logo, logo
             assert not any(old in logo for old in ARCHIVED), logo
 
 
