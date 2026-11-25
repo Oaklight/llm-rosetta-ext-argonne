@@ -1,10 +1,10 @@
 # argo
 
-Argo (Argonne) provider shims for [llm-rosetta](https://github.com/Oaklight/llm-rosetta), delivered as an **extension** (`llm_rosetta_ext.argo`), plus the `argo-tunnel` SSH tunnel command that makes the endpoint reachable from outside the network.
+Argo (Argonne) provider shims for [llm-rosetta](https://github.com/Oaklight/llm-rosetta), delivered as an **extension** (`llm_rosetta_ext.argo`), plus the `llm-rosetta argo tunnel` SSH tunnel command that makes the endpoint reachable from outside the network.
 
 The `argo--*` shims left llm-rosetta core in 0.14.0 ([#666](https://github.com/Oaklight/llm-rosetta/issues/666)); this extension is now their only source. Install it and existing provider entries keep their names (see *Install*).
 
-The tunnel is described in [The tunnel](#the-tunnel-argo-tunnel).
+The tunnel is described in [The tunnel](#the-tunnel-llm-rosetta-argo-tunnel).
 
 ## Shims
 
@@ -42,20 +42,20 @@ canonical names only. They remain in llm-rosetta as a spelling map, so an old
 config canonicalises first and reaches the error naming this package. Update
 the spelling to the canonical name above.
 
-## The tunnel (`argo-tunnel`)
+## The tunnel (`llm-rosetta argo tunnel`)
 
 `apps.inside.anl.gov` resolves only inside the Argonne network, and the jump
-host asks for Duo MFA on every new connection. The `argo-tunnel` console
-script owns that: one authenticated SSH master connection, one SOCKS5
+host asks for Duo MFA on every new connection. The `llm-rosetta argo tunnel`
+command owns that: one authenticated SSH master connection, one SOCKS5
 forward on top of it, and a status you can branch on.
 
 ```bash
-argo-tunnel auth pding --target lambda5.cels.anl.gov   # the one MFA prompt
-argo-tunnel start                                      # publish the SOCKS forward
-argo-tunnel proxy-url                                  # socks5://127.0.0.1:10801
+llm-rosetta argo tunnel auth pding --target lambda5.cels.anl.gov   # the one MFA prompt
+llm-rosetta argo tunnel start                                      # publish the SOCKS forward
+llm-rosetta argo tunnel proxy-url                                  # socks5://127.0.0.1:10801
 ```
 
-The same command is also reachable as `llm-rosetta argo-tunnel ...` (the extension registers it as a dispatcher command), and as one standalone file that needs no install. The file is generated from `tunnel.py` by `scripts/sync_argo_tunnel_script.py` (at the repository root) and a test fails when the two drift:
+The same program is also one standalone file that needs no install (written below as `argo-tunnel`). The file is generated from `tunnel.py` by `scripts/sync_argo_tunnel_script.py` (at the repository root) and a test fails when the two drift:
 
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/<owner>/llm-rosetta-ext-argonne/main/scripts/argo-tunnel.py
@@ -65,7 +65,7 @@ python argo-tunnel.py auth pding --target lambda5.cels.anl.gov
 `auth` takes the account name in ssh's own position, and everything else that
 ssh takes: `--key/-i` for the private key, `--config/-F` for the config file,
 `--jump/-J` for the hop. With an alias it inherits that stanza's user, key and
-route, so `argo-tunnel auth --target lambda5` needs no other flag.
+route, so `llm-rosetta argo tunnel auth --target lambda5` needs no other flag.
 
 ### Which machine it connects to
 
@@ -118,7 +118,7 @@ tab has a credential section for it instead of only a key box:
 | Panel state | Means | What the exchange checked |
 |---|---|---|
 | Connected | The account name is set and the tunnel answers | a loopback connect to the entry's SOCKS `proxy` |
-| Needs sign-in | The proxy is declared but nothing listens | the same connect, refused — the message names the URL and `argo-tunnel auth` |
+| Needs sign-in | The proxy is declared but nothing listens | the same connect, refused — the message names the URL and `llm-rosetta argo tunnel auth` |
 | Failing | No account name is configured | the message says to put the ANL username in the key field |
 
 The exchange declares `consumes_key`: your ANL username **is** the credential,
@@ -158,7 +158,7 @@ configuration with `ssh -G`, so whatever you set globally is what gets used:
 | lifetime | `ControlPersist` — used as given | `--control-persist` / `ARGO_TUNNEL_CONTROL_PERSIST` | `8h` |
 
 ```bash
-argo-tunnel status --json   # "socket" tells you which one is in play
+llm-rosetta argo tunnel status --json   # "socket" tells you which one is in play
 ```
 
 Three details worth knowing:
@@ -198,7 +198,7 @@ hint: Stop that listener. If it is an SSH master this tool no longer tracks,
 
 A listening SOCKS server is never taken as proof that the forward is this
 tool's: `status` reports `forwarding` only for a forward it recorded, and
-`wedged` when something else holds the port. `argo-tunnel` never kills a
+`wedged` when something else holds the port. `llm-rosetta argo tunnel` never kills a
 listener and never removes a socket it did not create.
 
 `auth` also confirms the port actually listens after `ssh -O forward` returns
@@ -218,7 +218,7 @@ read as an account called `status` and fail as a login error.
 `logout` closes only a master this tool can claim. The profile is the record,
 but a live `ssh -M -S <our socket>` is the same fact read from the process
 table (via `/proc`, Linux only), so a lost profile no longer leaves you unable
-to close a master that `argo-tunnel` started.
+to close a master that `llm-rosetta argo tunnel` started.
 
 ### Configuration
 

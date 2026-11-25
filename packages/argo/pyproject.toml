@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "llm-rosetta-ext-argo"
 version = "0.3.0"
-description = "llm-rosetta extension: Argo (Argonne) shims and the argo-tunnel SSH tunnel CLI"
+description = "llm-rosetta extension: Argo (Argonne) shims and the `llm-rosetta argo tunnel` SSH tunnel command"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -16,15 +16,6 @@ dependencies = ["llm-rosetta>=0.14.0"]
 [project.entry-points."llm_rosetta.extensions"]
 argo = "llm_rosetta_ext.argo"
 
-# The same callable is a console script (pip installs) and a dispatcher command
-# (`llm-rosetta argo-tunnel`, found even in an unzipped wheel).  Its signature is
-# main(argv=None) -> int.
-[project.scripts]
-argo-tunnel = "llm_rosetta_ext.argo.tunnel:main"
-
-[project.entry-points."llm_rosetta.commands"]
-argo-tunnel = "llm_rosetta_ext.argo.tunnel:main"
-
 # The folder is the package: no src/ and no inner directory.  The import name
 # is mapped onto "." and the package is listed, so tests/ and the packaging
 # files stay out of the wheel.  The shim tree's folders hold no __init__.py,
@@ -34,7 +25,7 @@ package-dir = { "llm_rosetta_ext.argo" = "." }
 packages = ["llm_rosetta_ext.argo"]
 
 [tool.setuptools.package-data]
-"llm_rosetta_ext.argo" = [".pytest_cache/.gitignore", ".pytest_cache/CACHEDIR.TAG", ".pytest_cache/README.md", ".pytest_cache/v/cache/lastfailed", ".pytest_cache/v/cache/nodeids", "assets/argo.svg", "llm/chat_completions/provider.yaml", "llm/chat_completions/transforms.py", "llm/messages/provider.yaml", "llm/messages/transforms.py", "llm/open_responses/provider.yaml", "llm/open_responses/transforms.py", "plugin.yaml", "provider.yaml"]
+"llm_rosetta_ext.argo" = ["assets/argo.svg", "llm/chat_completions/provider.yaml", "llm/chat_completions/transforms.py", "llm/messages/provider.yaml", "llm/messages/transforms.py", "llm/open_responses/provider.yaml", "llm/open_responses/transforms.py", "plugin.yaml", "provider.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

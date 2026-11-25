@@ -8,7 +8,7 @@
 
 | Id | What it talks to | Shims | Maturity |
 |---|---|---|---|
-| [`argo`](packages/argo) | Argo, `https://apps.inside.anl.gov/argoapi` (reachable only inside the Argonne network, or through the SSH tunnel) | `argo--chat_completions`, `argo--messages`, `argo--open_responses`; also the `argo-tunnel` command | experimental |
+| [`argo`](packages/argo) | Argo, `https://apps.inside.anl.gov/argoapi` (reachable only inside the Argonne network, or through the SSH tunnel) | `argo--chat_completions`, `argo--messages`, `argo--open_responses`; also the `llm-rosetta argo tunnel` command | experimental |
 | [`alcf`](packages/alcf) | ALCF Inference Service, `https://inference-api.alcf.anl.gov/resource_server/...` (Globus sign-in) | `alcf_metis--chat_completions`, `alcf_minerva--chat_completions`, `alcf_sophia--chat_completions` | experimental |
 | [`asksage`](packages/asksage) | AskSage, `https://api.asksage.ai/server/...` (the ANL deployment uses `api.asksage.anl.gov`) | `asksage--chat_completions`, `asksage--open_responses`, `asksage--messages`, `asksage--google_generate`, `asksage--embeddings` | experimental |
 

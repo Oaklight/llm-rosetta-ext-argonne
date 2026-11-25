@@ -1,37 +1,42 @@
-"""``argo-tunnel`` is also a command of the ``llm-rosetta`` dispatcher.
+"""``llm-rosetta argo tunnel``: the extension's command (#1704).
 
-The dispatcher calls ``main(argv)`` with the arguments after the command name
-and uses the callable's first docstring line as the help summary.
+The manifest lists the verb, ``commands.py`` maps it to a callable, and the
+dispatcher calls that callable with the arguments after the verb.
 """
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
-from llm_rosetta_ext.argo import tunnel
+from llm_rosetta_ext.argo import commands, tunnel
 
-_PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
-
-
-def test_the_command_group_and_the_console_script_name_the_same_callable():
-    text = _PYPROJECT.read_text(encoding="utf-8")
-    target = '"llm_rosetta_ext.argo.tunnel:main"'
-    assert re.search(
-        r"\[project\.scripts\]\s+argo-tunnel = " + re.escape(target), text
-    )
-    assert re.search(
-        r"\[project\.entry-points\.\"llm_rosetta\.commands\"\]\s+argo-tunnel = "
-        + re.escape(target),
-        text,
-    )
+_FOLDER = Path(__file__).resolve().parents[1]
 
 
-def test_main_takes_the_arguments_after_the_command_name_and_returns_the_exit_code():
-    assert tunnel.main(["proxy-url", "--port", "43210"]) == 0
-    assert tunnel.main([]) == 2
+def test_the_manifest_lists_the_verb_commands_exposes():
+    text = (_FOLDER / "plugin.yaml").read_text(encoding="utf-8")
+    assert "commands:\n    tunnel:" in text
+    assert set(commands.COMMANDS) == {"tunnel"}
 
 
-def test_the_first_docstring_line_is_the_help_summary():
-    first = (tunnel.main.__doc__ or "").strip().splitlines()[0]
-    assert "tunnel" in first.lower()
+def test_the_old_console_script_and_dispatcher_entry_point_are_gone():
+    text = (_FOLDER / "pyproject.toml").read_text(encoding="utf-8")
+    assert "[project.scripts]" not in text
+    assert "llm_rosetta.commands" not in text
+
+
+def test_the_command_takes_the_arguments_after_the_verb_and_returns_the_exit_code():
+    run = commands.COMMANDS["tunnel"]
+    assert run(["proxy-url", "--port", "43210"]) == 0
+    assert run([]) == 2
+
+
+def test_usage_names_the_dispatcher_spelling_and_restores_the_standalone_one(capsys):
+    commands.COMMANDS["tunnel"]([])
+    assert "llm-rosetta argo tunnel" in capsys.readouterr().out
+    assert tunnel.PROG == "argo-tunnel"
+
+
+def test_the_help_summary_is_in_the_manifest_not_the_docstring():
+    text = (_FOLDER / "plugin.yaml").read_text(encoding="utf-8")
+    assert "Open and manage the SSH tunnel" in text.split("commands:")[1]

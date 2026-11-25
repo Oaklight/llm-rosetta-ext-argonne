@@ -10,11 +10,11 @@ hint_msg:
   en: >-
     Argo authenticates with your ANL account name, used as the API key, and
     apps.inside.anl.gov is reachable only through the SSH tunnel that
-    `argo-tunnel auth` opens. Point this entry's proxy at
+    `llm-rosetta argo tunnel auth` opens. Point this entry's proxy at
     socks5://127.0.0.1:10801; a host already inside the network sets none.
   zh: >-
     Argo 用 ANL 账号名认证（填在 API Key 一栏），而 apps.inside.anl.gov 只能通过
-    `argo-tunnel auth` 建立的 SSH 隧道访问。请把本条的 proxy 指向
+    `llm-rosetta argo tunnel auth` 建立的 SSH 隧道访问。请把本条的 proxy 指向
     socks5://127.0.0.1:10801；已经在内网的主机无需设置。
 
 connection:

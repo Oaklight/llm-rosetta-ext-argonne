@@ -1,4 +1,4 @@
-"""Argo (Argonne): provider shims, the tunnel-aware credential exchange (auth.py) and the argo-tunnel CLI (tunnel.py).
+"""Argo (Argonne): provider shims, the tunnel-aware credential exchange (auth.py) and the ``llm-rosetta argo tunnel`` command (commands.py, tunnel.py).
 
 The folder is the package, imported as ``llm_rosetta_ext.argo``; it holds the
 shim tree (``provider.yaml`` and the lane folders) and the sidecars the loader

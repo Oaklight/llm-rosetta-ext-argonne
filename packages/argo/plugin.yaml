@@ -8,6 +8,10 @@ requires:
   ir: 1
 provides:
   shims: ["argo--chat_completions", "argo--messages", "argo--open_responses"]
+  commands:
+    tunnel:
+      en: "Open and manage the SSH tunnel to the Argo endpoint."
+      zh: "建立并管理通往 Argo 端点的 SSH 隧道。"
 summary:
-  en: "Argo (Argonne) chat_completions, messages and open_responses shims, plus the argo-tunnel SSH tunnel command."
-  zh: "Argo(阿贡)的 chat_completions、messages、open_responses 三条 shim,另附 argo-tunnel SSH 隧道命令。"
+  en: "Argo (Argonne) chat_completions, messages and open_responses shims, plus the `llm-rosetta argo tunnel` SSH tunnel command."
+  zh: "Argo(阿贡)的 chat_completions、messages、open_responses 三条 shim,另附 `llm-rosetta argo tunnel` SSH 隧道命令。"

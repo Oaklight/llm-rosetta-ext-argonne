@@ -96,6 +96,10 @@ __all__ = [
     "main",
 ]
 
+#: How the command is spelled in usage and hints.  The standalone file keeps
+#: this; the dispatcher passes its own spelling to :func:`main`.
+PROG = "argo-tunnel"
+
 #: The hop that reaches the Argo network from outside, and the machine the
 #: forward is opened from.  Both are Argonne facts, and they are the pair
 #: ``n-getty/argo-shim`` uses.
@@ -1236,7 +1240,7 @@ class Tunnel:
         if state == TunnelState.ABSENT:
             raise TunnelError(
                 f"no master connection on {self.config.socket}",
-                hint="run 'argo-tunnel auth' first",
+                hint=f"run '{PROG} auth' first",
             )
         argv = (
             self._transport_args()
@@ -1426,7 +1430,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     parser = argparse.ArgumentParser(
-        prog="argo-tunnel",
+        prog=PROG,
         description=(
             "Own the SSH master connection and the SOCKS5 forward that make "
             "the Argo API host reachable."
@@ -1521,7 +1525,7 @@ def _config_from_args(args: argparse.Namespace) -> TunnelConfig:
         raise TunnelError(
             f"{username!r} is a subcommand, not an account name",
             hint=(
-                f"run 'argo-tunnel {username}'; "
+                f"run '{PROG} {username}'; "
                 f"to name an account, pass --user {username}"
             ),
         )
@@ -1546,16 +1550,29 @@ def _config_from_args(args: argparse.Namespace) -> TunnelConfig:
     return result
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None, *, prog: str | None = None) -> int:
     """Open and manage the SSH tunnel to the Argo endpoint.
 
     Args:
         argv: Arguments without the program name; defaults to ``sys.argv``.
+        prog: How the command is spelled in usage and hints; ``argo-tunnel`` for
+            the standalone file, ``llm-rosetta argo tunnel`` from the dispatcher.
 
     Returns:
         A process exit code: ``0`` success, ``1`` the operation did not
         complete, ``2`` a usage error.
     """
+    global PROG
+    previous = PROG
+    if prog:
+        PROG = prog
+    try:
+        return _main(argv)
+    finally:
+        PROG = previous
+
+
+def _main(argv: Sequence[str] | None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
     if not args.command:
