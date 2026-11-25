@@ -1,0 +1,66 @@
+name: argo--messages
+model_type: llm
+format: messages
+logo: https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argo@main/assets/argo.png
+
+# The panel's own sentence for an entry with no proxy set: the tunnel is what
+# makes this host reachable, and "why is my key rejected" is the question the
+# absence of one produces.
+hint_msg:
+  en: >-
+    Argo authenticates with your ANL account name, used as the API key, and
+    apps.inside.anl.gov is reachable only through the SSH tunnel that
+    `argo-tunnel auth` opens. Point this entry's proxy at
+    socks5://127.0.0.1:10801; a host already inside the network sets none.
+  zh: >-
+    Argo 用 ANL 账号名认证（填在 API Key 一栏），而 apps.inside.anl.gov 只能通过
+    `argo-tunnel auth` 建立的 SSH 隧道访问。请把本条的 proxy 指向
+    socks5://127.0.0.1:10801；已经在内网的主机无需设置。
+
+connection:
+  base_url: https://apps.inside.anl.gov/argoapi
+reasoning:
+  thinking_modes:
+    auto: adaptive
+    enabled: enabled
+    disabled: disabled
+  thinking_default: auto
+  effort_field: output_config.effort
+  effort_range: [low, max]
+  budget_ratio: 0.8
+  visibility_modes:
+    auto: summarized
+    concise: summarized
+    detailed: summarized
+    none: omitted
+  unsigned_blocks: preserve
+  # Argo Anthropic thinking support matrix (probed 2026-09-28):
+  #   Gen 1 (4.5):     enabled+budget only (adaptive → 400)
+  #   Gen 2 (4.6):     enabled+budget + adaptive
+  #   Gen 3 (4.7+):    adaptive only (enabled → 400)
+  model_overrides:
+    claudehaiku45:
+      thinking_modes: {enabled: enabled, disabled: disabled}
+      budget_ratio: 0.8
+    claudesonnet45:
+      thinking_modes: {enabled: enabled, disabled: disabled}
+      budget_ratio: 0.8
+    claudeopus45:
+      thinking_modes: {enabled: enabled, disabled: disabled}
+      budget_ratio: 0.8
+    # claudesonnet46 and claudeopus46: default modes work (both enabled+budget and adaptive)
+    claudeopus47:
+      thinking_modes: {auto: adaptive, enabled: adaptive, disabled: disabled}
+    claudeopus48:
+      thinking_modes: {auto: adaptive, enabled: adaptive, disabled: disabled}
+    claudesonnet5:
+      thinking_modes: {auto: adaptive, enabled: adaptive, disabled: disabled}
+    claudeopus5:
+      thinking_modes: {auto: adaptive, enabled: adaptive, disabled: disabled}
+
+soft_error_patterns:
+  - pattern: "AUTHENTICATION NOTICE FROM ARGO"
+    status_code: 403
+    message: >-
+      ARGO authentication error: the upstream ARGO gateway rejected the
+      request. Verify your username and API key configuration.
