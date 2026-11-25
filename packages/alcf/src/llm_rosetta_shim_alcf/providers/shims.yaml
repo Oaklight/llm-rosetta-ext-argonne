@@ -1,0 +1,11 @@
+version: 1
+# The exchange is a vendor-level `auth.py`, and the shims need a core that
+# loads one beside a manifest.
+core: ">=0.14.0"
+shims:
+  - name: alcf_metis--chat_completions
+    path: alcf/metis/llm
+  - name: alcf_minerva--chat_completions
+    path: alcf/minerva/llm
+  - name: alcf_sophia--chat_completions
+    path: alcf/sophia/llm
