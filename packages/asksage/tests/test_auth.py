@@ -1,4 +1,4 @@
-"""Tests for the AskSage key exchange (``providers/asksage/auth.py``)."""
+"""Tests for the AskSage key exchange (``auth.py``)."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 
-from llm_rosetta.shims.auth_exchange import AuthContext, AuthExchangeError
+from llm_rosetta.contracts.auth import AuthContext, AuthExchangeError
 
 
 class _Response:
@@ -32,14 +32,7 @@ class _Response:
         return None
 
 
-AUTH_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "src"
-    / "llm_rosetta_shim_asksage"
-    / "providers"
-    / "asksage"
-    / "auth.py"
-)
+AUTH_PATH = Path(__file__).resolve().parents[1] / "auth.py"
 
 
 @pytest.fixture
@@ -299,10 +292,13 @@ def test_the_declared_field_is_the_account_email(asksage):
     The form is data, so a change to it is a change to the YAML — the module
     is not the home of the wording, the order, or the required flag.
     """
-    from llm_rosetta.shims.providers import load_providers_from_dir
+    from llm_rosetta.api import load_providers_from_dir, staging_registry
 
     root = AUTH_PATH.parents[1]
-    by_name = {s.name: s for s in load_providers_from_dir(root)}
+    with staging_registry():
+        by_name = {
+            s.name: s for s in load_providers_from_dir(root.parent, only_paths=("asksage",))
+        }
 
     for shim in by_name.values():
         (field,) = shim.fields

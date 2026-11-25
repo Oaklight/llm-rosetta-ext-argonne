@@ -4,10 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from llm_rosetta.shims import get_shim
-from llm_rosetta.shims.provider_shim import _reset_registry
-
-from llm_rosetta_shim_asksage import register_shims
+from llm_rosetta.api import get_shim
 
 SHIMS = (
     "asksage--chat_completions",
@@ -18,11 +15,8 @@ SHIMS = (
 
 
 @pytest.fixture(autouse=True)
-def _registered():
-    _reset_registry()
-    register_shims()
-    yield
-    _reset_registry()
+def _registered(register):
+    register("asksage")
 
 
 @pytest.mark.parametrize(

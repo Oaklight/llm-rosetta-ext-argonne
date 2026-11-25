@@ -1,0 +1,13 @@
+# One manifest per extension folder.  Draft schema: see AGENTS.md.
+id: asksage
+name: AskSage
+version: 0.4.0
+maturity: experimental
+requires:
+  surface: 1
+  ir: 1
+provides:
+  shims: ["asksage--chat_completions", "asksage--google_generate", "asksage--messages", "asksage--open_responses", "asksage--embeddings"]
+summary:
+  en: "AskSage shims for the chat, responses, messages, Google generate and embeddings lanes, with the key-to-token exchange."
+  zh: "AskSage 的 chat、responses、messages、Google generate、embeddings 通道 shim,附账户密钥换令牌的凭据交换。"

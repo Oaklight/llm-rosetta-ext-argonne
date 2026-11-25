@@ -6,18 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from llm_rosetta.shims import get_shim, load_providers_from_dir
-from llm_rosetta.shims.provider_shim import _reset_registry
+from llm_rosetta.api import get_shim, load_providers_from_dir, staging_registry
 
-from llm_rosetta_shim_asksage import register_shims
-
-#: The directory the package ships and the entry point loads.
-_PROVIDERS = (
-    Path(__file__).resolve().parents[1]
-    / "src"
-    / "llm_rosetta_shim_asksage"
-    / "providers"
-)
+#: The ``packages`` directory: the parent of this extension's folder.
+_PACKAGES = Path(__file__).resolve().parents[2]
 
 _SHIMS = {
     "asksage--chat_completions": "chat_completions",
@@ -33,9 +25,8 @@ _EXPECTED_HOST = "https://api.asksage.ai"
 
 
 @pytest.fixture()
-def _registered():
-    _reset_registry()  # clean registry, so only the plugin's shims are present
-    register_shims()
+def _registered(register):
+    register("asksage")  # a clean registry holding only this extension's shims
     yield
 
 
@@ -43,7 +34,7 @@ def _registered():
 def test_registers_asksage_shim(_registered, name, base):
     shim = get_shim(name)
     assert shim is not None
-    assert shim.base == base
+    assert shim.format == base
     assert shim.connection.base_url.startswith("https://api.asksage.ai/")
     assert shim.connection.api_key_env == "ASKSAGE_API_KEY"
 
@@ -160,15 +151,13 @@ def test_the_legacy_section_refuses_a_minting_entry(_registered):
 def test_the_shipped_directory_registers_every_leaf():
     """Load the files, not the entry point: this is what ships and what loads.
 
-    ``register_shims`` needs an installed package and reaches the directory
-    through the entry point.  This walks ``providers/`` the way the gateway's
-    loader does, so a leaf the loader skips — an unknown ``model_type``, a
-    manifest read as a shim — fails here rather than glowing green on a
-    registry that some other call filled.
+    This walks the extension's folder the way the gateway's loader does, so a
+    leaf the loader skips — an unknown ``model_type``, a manifest read as a
+    shim — fails here rather than glowing green on a registry that some other
+    call filled.
     """
-    _reset_registry()
+    with staging_registry():  # starts empty
+        loaded = load_providers_from_dir(_PACKAGES, only_paths=("asksage",))
 
-    loaded = load_providers_from_dir(_PROVIDERS)
-
-    assert sorted(shim.name for shim in loaded) == sorted(_SHIMS)
-    assert get_shim("asksage--embeddings") is not None
+        assert sorted(shim.name for shim in loaded) == sorted(_SHIMS)
+        assert get_shim("asksage--embeddings") is not None
