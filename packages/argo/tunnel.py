@@ -1538,7 +1538,7 @@ def _config_from_args(args: argparse.Namespace) -> TunnelConfig:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the CLI.
+    """Open and manage the SSH tunnel to the Argo endpoint.
 
     Args:
         argv: Arguments without the program name; defaults to ``sys.argv``.
