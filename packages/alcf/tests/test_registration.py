@@ -7,10 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from llm_rosetta.shims import get_shim
-from llm_rosetta.shims.provider_shim import _reset_registry
-
-from llm_rosetta_shim_alcf import register_shims
+from llm_rosetta.api import get_shim
 
 _CLUSTERS = ("metis", "minerva", "sophia")
 _SHIMS = tuple(f"alcf_{cluster}--chat_completions" for cluster in _CLUSTERS)
@@ -20,13 +17,7 @@ _SHIMS = tuple(f"alcf_{cluster}--chat_completions" for cluster in _CLUSTERS)
 _GROUP = "alcf"
 _DISPLAY_NAMES = {"metis", "minerva", "sophia"}
 
-_PROVIDERS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / "src"
-    / "llm_rosetta_shim_alcf"
-    / "providers"
-    / "alcf"
-)
+_PROVIDERS_DIR = Path(__file__).resolve().parents[1]
 
 
 def _provider_config(cluster: str) -> dict:
@@ -36,9 +27,8 @@ def _provider_config(cluster: str) -> dict:
 
 
 @pytest.fixture()
-def _registered():
-    _reset_registry()  # clean registry, so only the plugin's shims are present
-    register_shims()
+def _registered(register):
+    register("alcf")  # a clean registry holding only this extension's shims
     yield
 
 
@@ -46,7 +36,7 @@ def _registered():
 def test_registers_alcf_shim(_registered, name):
     shim = get_shim(name)
     assert shim is not None
-    assert shim.base == "chat_completions"
+    assert shim.format == "chat_completions"
     assert shim.connection.base_url.startswith(
         "https://inference-api.alcf.anl.gov/resource_server/"
     )
@@ -103,7 +93,7 @@ def test_a_provider_without_a_grant_asks_for_a_sign_in(
     """
     import sys
 
-    from llm_rosetta.shims.auth_exchange import AuthContext
+    from llm_rosetta.contracts.auth import AuthContext
 
     shim = get_shim(name)
     assert shim is not None

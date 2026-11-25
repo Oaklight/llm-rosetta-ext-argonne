@@ -1,22 +1,8 @@
-# llm-rosetta-shim-alcf
+# alcf
 
-ALCF (Argonne Leadership Computing Facility) provider shims for
-[llm-rosetta](https://github.com/Oaklight/llm-rosetta), delivered as a **plugin
-package** rather than as built-in shims.
+ALCF (Argonne Leadership Computing Facility) provider shims for [llm-rosetta](https://github.com/Oaklight/llm-rosetta), delivered as an **extension** (`llm_rosetta_ext.alcf`).
 
-The `alcf_*` shims left llm-rosetta core in 0.14.0
-([#666](https://github.com/Oaklight/llm-rosetta/issues/666)); this package is now
-their only source. Declare it in the gateway config and existing provider
-entries keep their names:
-
-```jsonc
-{ "shims": { "presets": ["alcf"] } }
-```
-
-`shims.presets` expands to this repository's archive path via llm-rosetta's
-catalogue; the equivalent explicit entry is `{"url": "...", "path":
-"src/llm_rosetta_shim_alcf/providers"}`. The repository is public, so no
-`token_env` is needed.
+The `alcf_*` shims left llm-rosetta core in 0.14.0 ([#666](https://github.com/Oaklight/llm-rosetta/issues/666)); this extension is now their only source. Install it and existing provider entries keep their names (see *Install*).
 
 ## Shims
 
@@ -40,7 +26,7 @@ Model ID slugs come from a shared `model_list_transform` (framework-aware filter
 ## Credential
 
 The Globus grant *is* this vendor's credential, and the package ships the
-exchange that owns it: `providers/alcf/auth.py`, beside the vendor manifest, so
+exchange that owns it: `auth.py`, beside the vendor manifest, so
 all three clusters authenticate alike. There is no static key and no argv: a
 shim ships one form of its credential exchange.
 
@@ -76,80 +62,28 @@ mint failure, not as a wrong key.
 ## Install
 
 ```bash
-pip install llm-rosetta llm-rosetta-shim-alcf
+pip install "git+https://github.com/<owner>/llm-rosetta-ext-argonne@alcf/v0.4.0#subdirectory=packages/alcf"
+# or, from a built wheel:
+llm-rosetta ext install <wheel>
 ```
 
-llm-rosetta discovers the `llm_rosetta.shim_providers` entry point and registers
-the `alcf_<cluster>--chat_completions` shims automatically.
-
-## Archive and mirror
-
-Every release publishes one archive of the bundled shims, so a gateway can load
-them from a host other than GitHub. `main` never carries it: `dist/` is build
-output and is in `.gitignore`.
-
-- `v<version>/alcf.tar.gz` and `v<version>/alcf.tar.gz.sha256` live on the
-  orphan `dist` branch.
-- The same bytes are attached to the GitHub Release, with the digest in its
-  notes.
-
-Two interchangeable, version-pinned URLs for the same bytes:
-
-```
-https://github.com/Oaklight/llm-rosetta-shim-alcf/releases/download/v<version>/alcf.tar.gz
-https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-alcf@dist/v<version>/alcf.tar.gz
-```
-
-The archive's root is `providers/`, the layout the package ships under
-`src/llm_rosetta_shim_alcf/providers`, so a gateway source declares `path: "providers"`:
-
-```jsonc
-{
-  "shims": {
-    "remotes": [
-      {
-        "url": "https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-alcf@dist/v<version>/alcf.tar.gz",
-        "path": "providers",
-        "archive": "tar.gz",
-        "sha256": "<digest from v<version>/alcf.tar.gz.sha256>"
-      }
-    ]
-  }
-}
-```
-
-The digest is what pins the mirror, and the same value appears in the release
-notes. jsDelivr is only the default suggestion: the gateway accepts any URL that
-serves the same bytes, an internal mirror included.
-
-### Publishing a release
-
-1. Bump `__version__` in `src/llm_rosetta_shim_alcf/__init__.py`. The tag must match it —
-   the release workflow passes the tag without its `v` as `--expect-version` and
-   refuses a mismatch.
-2. `python scripts/build_shim_archive.py --write` builds
-   `dist/v<version>/alcf.tar.gz` and its digest locally and verifies the
-   layout. CI runs the same build without writing on every push, so a tree whose
-   `providers/` layout changed fails before a tag is cut.
-3. Tag and push: `git tag v<version> && git push origin v<version>`.
-4. `.github/workflows/release.yml` builds from the tag, creates or updates the
-   GitHub Release, uploads the archive and its digest file, and commits
-   `v<version>/` to the `dist` branch.
-
-The workflow requests `contents: write` for `GITHUB_TOKEN`, because it creates
-the release and pushes `dist`. An organization that downgrades action tokens to
-read-only must restore "Read and write permissions" under Settings → Actions →
-General, or the release step fails.
+llm-rosetta discovers the extension through the `llm_rosetta.extensions` entry point and registers the `alcf_<cluster>--chat_completions` shims.
 
 ## Requirements
 
 - Python >= 3.10
-- `llm-rosetta >= 0.14.0.dev31` (the plugin shim loader, the vendor manifest —
-  which also carries the vendor's `logo` / `group` / `group_label` — and a
-  vendor-level `auth.py`; dev30 and earlier refuse a manifest that declares
-  identity, which would take the whole package down with it)
-- No credential in the environment: the shipped exchange reads and renews the
-  Globus grant in `~/.globus`, or the record under the gateway's data directory
+- `llm-rosetta >= 0.14.0`
+- No credential in the environment: the shipped exchange reads and renews the Globus grant in `~/.globus`, or the record under the gateway's data directory
+
+## Tests
+
+```bash
+python -m pytest packages/alcf/tests
+```
+
+## Live verification
+
+No dated live-verification record was kept in the old README. `sophia/llm/provider.yaml` notes that the effort ladder was verified live 2026-10-13 with openai/gpt-oss-120b, issue #961.
 
 ## License
 

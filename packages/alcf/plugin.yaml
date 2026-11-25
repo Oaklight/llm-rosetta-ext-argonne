@@ -1,0 +1,13 @@
+# One manifest per extension folder.  Draft schema: see AGENTS.md.
+id: alcf
+name: ALCF (Argonne Leadership Computing Facility)
+version: 0.4.0
+maturity: experimental
+requires:
+  surface: 1
+  ir: 1
+provides:
+  shims: ["alcf_metis--chat_completions", "alcf_minerva--chat_completions", "alcf_sophia--chat_completions"]
+summary:
+  en: "ALCF inference shims for the Metis, Minerva and Sophia clusters, with the Globus sign-in exchange."
+  zh: "ALCF 推理服务 Metis、Minerva、Sophia 三个集群的 shim,附 Globus 登录凭据交换。"

@@ -1,4 +1,4 @@
-"""Tests for the ALCF Globus exchange (``providers/alcf/auth.py``)."""
+"""Tests for the ALCF Globus exchange (``auth.py``)."""
 
 from __future__ import annotations
 
@@ -11,21 +11,14 @@ from typing import Any
 
 import pytest
 
-from llm_rosetta.shims.auth_exchange import (
+from llm_rosetta.contracts.auth import (
     AuthContext,
     AuthExchangeError,
     InteractiveSetupRequired,
 )
 
 
-AUTH_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "src"
-    / "llm_rosetta_shim_alcf"
-    / "providers"
-    / "alcf"
-    / "auth.py"
-)
+AUTH_PATH = Path(__file__).resolve().parents[1] / "auth.py"
 
 
 @pytest.fixture
