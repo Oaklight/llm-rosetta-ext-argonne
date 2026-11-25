@@ -4,28 +4,17 @@ from __future__ import annotations
 
 import pytest
 
-from llm_rosetta.shims import get_shim
-from llm_rosetta.shims.provider_shim import _reset_registry
-from llm_rosetta.transforms import apply_transforms
+from llm_rosetta.api import get_shim
+from llm_rosetta.contracts.transform import apply_transforms
 
-from llm_rosetta_shim_argo import register_shims
 
 
 @pytest.fixture(autouse=True)
-def _registered():
-    _reset_registry()
-    register_shims()
-    yield
-    _reset_registry()
+def _registered(register):
+    register("argo")
 
 
 class TestArgoOpenaiChatTransforms:
-    @pytest.fixture(autouse=True)
-    def _load_builtins(self):
-        from llm_rosetta.shims.providers import load_providers
-
-        load_providers()
-
     def test_argo_downgrades_developer_role(self):
         shim = get_shim("argo--chat_completions")
         assert shim is not None

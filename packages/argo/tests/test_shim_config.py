@@ -4,18 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from llm_rosetta.shims import get_shim
-from llm_rosetta.shims.provider_shim import _reset_registry
+from llm_rosetta.api import get_shim
 
-from llm_rosetta_shim_argo import register_shims
 
 
 @pytest.fixture(autouse=True)
-def _registered():
-    _reset_registry()
-    register_shims()
-    yield
-    _reset_registry()
+def _registered(register):
+    register("argo")
 
 
 def test_model_id_field_is_internal_id():
@@ -64,7 +59,7 @@ def test_responses_profile_traits():
 def test_chat_shim_declares_tool_description_limit():
     shim = get_shim("argo--chat_completions")
     assert shim is not None
-    assert shim.max_tool_description_length == 1024
+    assert shim.tools.max_description_length == 1024
 
 
 def test_messages_shim_declares_soft_error_patterns():

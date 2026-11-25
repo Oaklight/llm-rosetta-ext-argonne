@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-from llm_rosetta_shim_argo.providers.argo.model_utils import model_list_transform
+from llm_rosetta_ext.argo.model_utils import model_list_transform
 
 
 class TestModelListTransform:

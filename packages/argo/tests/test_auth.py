@@ -14,25 +14,20 @@ import sys
 
 import pytest
 
-from llm_rosetta.shims import get_shim
-from llm_rosetta.shims.auth_exchange import (
+from llm_rosetta.api import get_shim
+from llm_rosetta.contracts.auth import (
     AuthContext,
     AuthExchangeError,
     InteractiveSetupRequired,
 )
-from llm_rosetta.shims.provider_shim import _reset_registry
 
-from llm_rosetta_shim_argo import register_shims
 
 _SHIMS = ("argo--messages", "argo--chat_completions", "argo--open_responses")
 
 
 @pytest.fixture(autouse=True)
-def _registered():
-    _reset_registry()
-    register_shims()
-    yield
-    _reset_registry()
+def _registered(register):
+    register("argo")
 
 
 def _module():
@@ -40,7 +35,7 @@ def _module():
 
     The loader runs the file under a generated name rather than importing the
     package's module object, so a patch has to land on that module — patching
-    ``llm_rosetta_shim_argo.providers.argo.auth`` would change a second copy
+    ``llm_rosetta_ext.argo.auth`` would change a second copy
     nothing reads.
     """
     shim = get_shim("argo--messages")

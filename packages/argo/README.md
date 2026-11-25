@@ -1,25 +1,10 @@
-# llm-rosetta-shim-argo
+# argo
 
-Argo (Argonne) provider shims for [llm-rosetta](https://github.com/Oaklight/llm-rosetta),
-delivered as a **plugin package** rather than as built-in shims.
+Argo (Argonne) provider shims for [llm-rosetta](https://github.com/Oaklight/llm-rosetta), delivered as an **extension** (`llm_rosetta_ext.argo`), plus the `argo-tunnel` SSH tunnel command that makes the endpoint reachable from outside the network.
 
-The `argo--*` shims left llm-rosetta core in 0.14.0
-([#666](https://github.com/Oaklight/llm-rosetta/issues/666)); this package is now
-their only source. Declare it in the gateway config and existing provider
-entries keep their names:
+The `argo--*` shims left llm-rosetta core in 0.14.0 ([#666](https://github.com/Oaklight/llm-rosetta/issues/666)); this extension is now their only source. Install it and existing provider entries keep their names (see *Install*).
 
-```jsonc
-{ "shims": { "presets": ["argo"] } }
-```
-
-`shims.presets` expands to this repository's archive path via llm-rosetta's
-catalogue; the equivalent explicit entry is `{"url": "...", "path":
-"src/llm_rosetta_shim_argo/providers"}`. The repository is public, so no
-`token_env` is needed.
-
-The same package also ships `argo-tunnel`, the SSH tunnel CLI that makes the
-endpoint reachable from outside the network — see
-[The tunnel](#the-tunnel-argo-tunnel).
+The tunnel is described in [The tunnel](#the-tunnel-argo-tunnel).
 
 ## Shims
 
@@ -35,12 +20,12 @@ patterns, and field/schema transforms (Gemini-via-Argo quirks, model-ID mapping)
 ## Install
 
 ```bash
-pip install llm-rosetta
-pip install llm-rosetta-shim-argo
+pip install "git+https://github.com/<owner>/llm-rosetta-ext-argonne@argo/v0.3.0#subdirectory=packages/argo"
+# or, from a built wheel:
+llm-rosetta ext install <wheel>
 ```
 
-llm-rosetta discovers the `llm_rosetta.shim_providers` entry point on startup and
-registers the `argo--*` shims automatically — no import needed in application code.
+llm-rosetta discovers the extension through the `llm_rosetta.extensions` entry point and registers the `argo--*` shims; no import is needed in application code.
 
 ## Usage
 
@@ -57,65 +42,6 @@ canonical names only. They remain in llm-rosetta as a spelling map, so an old
 config canonicalises first and reaches the error naming this package. Update
 the spelling to the canonical name above.
 
-## Archive and mirror
-
-Every release publishes one archive of the bundled shims, so a gateway can load
-them from a host other than GitHub. `main` never carries it: `dist/` is build
-output and is in `.gitignore`.
-
-- `v<version>/argo.tar.gz` and `v<version>/argo.tar.gz.sha256` live on the
-  orphan `dist` branch.
-- The same bytes are attached to the GitHub Release, with the digest in its
-  notes.
-
-Two interchangeable, version-pinned URLs for the same bytes:
-
-```
-https://github.com/Oaklight/llm-rosetta-shim-argo/releases/download/v<version>/argo.tar.gz
-https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argo@dist/v<version>/argo.tar.gz
-```
-
-The archive's root is `providers/`, the layout the package ships under
-`src/llm_rosetta_shim_argo/providers`, so a gateway source declares `path: "providers"`:
-
-```jsonc
-{
-  "shims": {
-    "remotes": [
-      {
-        "url": "https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argo@dist/v<version>/argo.tar.gz",
-        "path": "providers",
-        "archive": "tar.gz",
-        "sha256": "<digest from v<version>/argo.tar.gz.sha256>"
-      }
-    ]
-  }
-}
-```
-
-The digest is what pins the mirror, and the same value appears in the release
-notes. jsDelivr is only the default suggestion: the gateway accepts any URL that
-serves the same bytes, an internal mirror included.
-
-### Publishing a release
-
-1. Bump `__version__` in `src/llm_rosetta_shim_argo/__init__.py`. The tag must match it —
-   the release workflow passes the tag without its `v` as `--expect-version` and
-   refuses a mismatch.
-2. `python scripts/build_shim_archive.py --write` builds
-   `dist/v<version>/argo.tar.gz` and its digest locally and verifies the
-   layout. CI runs the same build without writing on every push, so a tree whose
-   `providers/` layout changed fails before a tag is cut.
-3. Tag and push: `git tag v<version> && git push origin v<version>`.
-4. `.github/workflows/release.yml` builds from the tag, creates or updates the
-   GitHub Release, uploads the archive and its digest file, and commits
-   `v<version>/` to the `dist` branch.
-
-The workflow requests `contents: write` for `GITHUB_TOKEN`, because it creates
-the release and pushes `dist`. An organization that downgrades action tokens to
-read-only must restore "Read and write permissions" under Settings → Actions →
-General, or the release step fails.
-
 ## The tunnel (`argo-tunnel`)
 
 `apps.inside.anl.gov` resolves only inside the Argonne network, and the jump
@@ -129,10 +55,10 @@ argo-tunnel start                                      # publish the SOCKS forwa
 argo-tunnel proxy-url                                  # socks5://127.0.0.1:10801
 ```
 
-No install needed — the same program is published as one file:
+The same command is also reachable as `llm-rosetta argo-tunnel ...` (the extension registers it as a dispatcher command), and as one standalone file that needs no install. The file is generated from `tunnel.py` by `scripts/sync_argo_tunnel_script.py` (at the repository root) and a test fails when the two drift:
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/Oaklight/llm-rosetta-shim-argo/main/scripts/argo-tunnel.py
+curl -fsSLO https://raw.githubusercontent.com/<owner>/llm-rosetta-ext-argonne/main/scripts/argo-tunnel.py
 python argo-tunnel.py auth pding --target lambda5.cels.anl.gov
 ```
 
@@ -175,8 +101,7 @@ Then point the Argo provider's `proxy` field at that URL:
       "proxy": "socks5://127.0.0.1:10801",
       "api_key": "<your ANL username>"
     }
-  },
-  "shims": { "presets": ["argo"] }
+  }
 }
 ```
 
@@ -328,12 +253,19 @@ The defaults are the Argonne pair: `homes.cels.anl.gov` through
 ## Requirements
 
 - Python >= 3.10
-- `llm-rosetta >= 0.14.0.dev28` (needs the plugin shim loader and the
-  vendor manifest)
-- `ARGO_API_KEY` in the environment at request time
-- for the tunnel: `ssh` on `PATH`, and an SSH account that reaches
-  `homes.cels.anl.gov` through `logins.cels.anl.gov`. `llm-rosetta` itself is
-  not needed for the tunnel — importing the package does not import it.
+- `llm-rosetta >= 0.14.0`
+- `ARGO_API_KEY` in the environment at request time (or the provider entry's `api_key`: the ANL account name)
+- for the tunnel: `ssh` on `PATH`, and an SSH account that reaches `homes.cels.anl.gov` through `logins.cels.anl.gov`. `llm-rosetta` itself is not needed for the tunnel: `tunnel.py` imports the standard library only.
+
+## Tests
+
+```bash
+python -m pytest packages/argo/tests
+```
+
+## Live verification
+
+No dated live-verification record was kept in the old README. The provider files carry these notes: the Anthropic thinking matrix was probed 2026-09-28 (`llm/messages/provider.yaml`), and the Responses echo fields were verified live 2026-10-12, issue #899 (`llm/open_responses/provider.yaml`).
 
 ## License
 

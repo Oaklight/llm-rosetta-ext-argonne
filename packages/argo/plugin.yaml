@@ -1,0 +1,13 @@
+# One manifest per extension folder.  Draft schema: see AGENTS.md.
+id: argo
+name: Argo (Argonne)
+version: 0.3.0
+maturity: experimental
+requires:
+  surface: 1
+  ir: 1
+provides:
+  shims: ["argo--chat_completions", "argo--messages", "argo--open_responses"]
+summary:
+  en: "Argo (Argonne) chat_completions, messages and open_responses shims, plus the argo-tunnel SSH tunnel command."
+  zh: "Argo(阿贡)的 chat_completions、messages、open_responses 三条 shim,另附 argo-tunnel SSH 隧道命令。"

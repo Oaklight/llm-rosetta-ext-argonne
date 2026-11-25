@@ -1,6 +1,6 @@
 """Write ``scripts/argo-tunnel.py``: a runnable copy of the tunnel module.
 
-The CLI has one shape for two audiences.  The package installs it as a console
+The CLI has one shape for two audiences.  The extension installs it as a console
 script (``argo-tunnel``); an operator without a checkout, or on a
 host where installing is a ticket, fetches one file and runs it.  Both must be
 the same program, so the second is generated from the first rather than
@@ -13,8 +13,8 @@ came from and that editing it is pointless.
 
 Usage::
 
-    python scripts/sync_cli_script.py           # write the file
-    python scripts/sync_cli_script.py --check   # exit 1 if it is stale
+    python scripts/sync_argo_tunnel_script.py           # write the file
+    python scripts/sync_argo_tunnel_script.py --check   # exit 1 if it is stale
 """
 
 from __future__ import annotations
@@ -24,17 +24,17 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SOURCE = REPO_ROOT / "src" / "llm_rosetta_shim_argo" / "tunnel.py"
+SOURCE = REPO_ROOT / "packages" / "argo" / "tunnel.py"
 TARGET = REPO_ROOT / "scripts" / "argo-tunnel.py"
 
 _BANNER = """#!/usr/bin/env python3
-# Generated from src/llm_rosetta_shim_argo/tunnel.py -- do not edit here.
-# Regenerate with: python scripts/sync_cli_script.py
+# Generated from packages/argo/tunnel.py -- do not edit here.
+# Regenerate with: python scripts/sync_argo_tunnel_script.py
 #
 # Standalone by design: standard library only, no llm-rosetta import, so this
 # file runs from a download with no install step:
 #
-#   curl -fsSLO https://raw.githubusercontent.com/Oaklight/llm-rosetta-shim-argo/main/scripts/argo-tunnel.py
+#   curl -fsSLO https://raw.githubusercontent.com/<owner>/llm-rosetta-ext-argonne/main/scripts/argo-tunnel.py
 #   python argo-tunnel.py auth pding --target lambda5.cels.anl.gov
 """
 
@@ -95,7 +95,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         print(
             f"{TARGET.relative_to(REPO_ROOT)} is stale; "
-            "run python scripts/sync_cli_script.py",
+            "run python scripts/sync_argo_tunnel_script.py",
             file=sys.stderr,
         )
         return 1

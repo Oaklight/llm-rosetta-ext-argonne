@@ -5,9 +5,9 @@ from __future__ import annotations
 import subprocess
 import pytest
 
-import llm_rosetta_shim_argo.tunnel as tunnel
+import llm_rosetta_ext.argo.tunnel as tunnel
 
-from llm_rosetta_shim_argo.tunnel import (
+from llm_rosetta_ext.argo.tunnel import (
     TunnelConfig,
     TunnelError,
     _build_parser,
@@ -28,7 +28,7 @@ def test_user_applies_to_explicit_target():
 
 def test_users_have_distinct_sockets(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "llm_rosetta_shim_argo.tunnel._resolved_ssh_config", lambda _: {}
+        "llm_rosetta_ext.argo.tunnel._resolved_ssh_config", lambda _: {}
     )
     a = TunnelConfig(target="remote", user="alice", state_dir=tmp_path)
     b = TunnelConfig(target="remote", user="bob", state_dir=tmp_path)
@@ -39,7 +39,7 @@ def test_generated_config_includes_original_for_destination_and_hop(
     tmp_path, monkeypatch
 ):
     monkeypatch.setattr(
-        "llm_rosetta_shim_argo.tunnel._resolved_ssh_config", lambda _: {}
+        "llm_rosetta_ext.argo.tunnel._resolved_ssh_config", lambda _: {}
     )
     original = tmp_path / "ssh config"
     original.write_text(
@@ -68,7 +68,7 @@ def test_generated_config_includes_original_for_destination_and_hop(
 
 def test_user_at_host_matches_key_in_generated_config(tmp_path, monkeypatch):
     monkeypatch.setattr(
-        "llm_rosetta_shim_argo.tunnel._resolved_ssh_config", lambda _: {}
+        "llm_rosetta_ext.argo.tunnel._resolved_ssh_config", lambda _: {}
     )
     key = tmp_path / "key"
     config = TunnelConfig(target="alice@remote", key=key, state_dir=tmp_path)
@@ -285,8 +285,8 @@ def test_logout_is_allowed_for_a_master_the_proc_scan_recognises(monkeypatch, tm
     naming our socket is the proof, so ``logout`` no longer refuses."""
     # Hermetic: the socket name depends on the resolved login, so a host that
     # happens to define a ``Host homes`` alias would compute a different one.
-    monkeypatch.setattr("llm_rosetta_shim_argo.tunnel._ssh_g", lambda *a, **k: {})
-    monkeypatch.setattr("llm_rosetta_shim_argo.tunnel._SSH_G_CACHE", {})
+    monkeypatch.setattr("llm_rosetta_ext.argo.tunnel._ssh_g", lambda *a, **k: {})
+    monkeypatch.setattr("llm_rosetta_ext.argo.tunnel._SSH_G_CACHE", {})
     proc = tmp_path / "proc"
     proc.mkdir()
     state = tmp_path / "state"

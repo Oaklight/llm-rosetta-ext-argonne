@@ -16,16 +16,16 @@ from pathlib import Path
 
 import pytest
 
-_REPO = Path(__file__).resolve().parents[1]
+_REPO = Path(__file__).resolve().parents[3]
 _SCRIPT = _REPO / "scripts" / "argo-tunnel.py"
-_SOURCE = _REPO / "src" / "llm_rosetta_shim_argo" / "tunnel.py"
+_SOURCE = _REPO / "packages" / "argo" / "tunnel.py"
 
 
 def test_the_copy_is_regenerated_when_the_module_changes():
     """A stale copy is worse than no copy: it ships an older CLI under the name
     of the current one."""
     done = subprocess.run(
-        [sys.executable, str(_REPO / "scripts" / "sync_cli_script.py"), "--check"],
+        [sys.executable, str(_REPO / "scripts" / "sync_argo_tunnel_script.py"), "--check"],
         capture_output=True,
         text=True,
     )
@@ -45,7 +45,7 @@ def test_the_copy_carries_no_package_import():
 
 def test_the_copy_names_where_it_came_from():
     first = _SCRIPT.read_text().splitlines()[1]
-    assert "src/llm_rosetta_shim_argo/tunnel.py" in first
+    assert "packages/argo/tunnel.py" in first
 
 
 @pytest.mark.parametrize("argv", [["proxy-url", "--port", "43210"]])
@@ -83,7 +83,7 @@ def test_a_package_import_fails_the_generator():
     import importlib.util
 
     spec = importlib.util.spec_from_file_location(
-        "sync_cli_script", _REPO / "scripts" / "sync_cli_script.py"
+        "sync_argo_tunnel_script", _REPO / "scripts" / "sync_argo_tunnel_script.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)  # type: ignore[union-attr]

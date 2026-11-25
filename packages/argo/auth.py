@@ -39,7 +39,7 @@ import urllib.parse
 from collections.abc import Mapping
 from typing import Any
 
-from llm_rosetta.shims.auth_exchange import (
+from llm_rosetta.contracts.auth import (
     AuthContext,
     AuthExchangeError,
     BaseAuthExchange,
