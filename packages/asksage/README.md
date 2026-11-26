@@ -129,7 +129,7 @@ llm-rosetta discovers the extension through the `llm_rosetta.extensions` entry p
 ## Requirements
 
 - Python >= 3.10
-- `llm-rosetta >= 0.14.0`
+- `llm-rosetta >= 0.14.0.dev40`
 - One of `ASKSAGE_TOKEN_API_KEY` / `ASK_SAGE_API` / `ASKSAGE_API_KEY` in the gateway's environment, for the shipped exchange to mint its token
 
 ## Tests

@@ -72,7 +72,7 @@ llm-rosetta discovers the extension through the `llm_rosetta.extensions` entry p
 ## Requirements
 
 - Python >= 3.10
-- `llm-rosetta >= 0.14.0`
+- `llm-rosetta >= 0.14.0.dev40`
 - No credential in the environment: the shipped exchange reads and renews the Globus grant in `~/.globus`, or the record under the gateway's data directory
 
 ## Tests

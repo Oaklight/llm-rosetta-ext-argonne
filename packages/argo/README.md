@@ -253,7 +253,7 @@ The defaults are the Argonne pair: `homes.cels.anl.gov` through
 ## Requirements
 
 - Python >= 3.10
-- `llm-rosetta >= 0.14.0`
+- `llm-rosetta >= 0.14.0.dev40`
 - `ARGO_API_KEY` in the environment at request time (or the provider entry's `api_key`: the ANL account name)
 - for the tunnel: `ssh` on `PATH`, and an SSH account that reaches `homes.cels.anl.gov` through `logins.cels.anl.gov`. `llm-rosetta` itself is not needed for the tunnel: `tunnel.py` imports the standard library only.
 
