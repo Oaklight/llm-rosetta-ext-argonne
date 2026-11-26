@@ -22,7 +22,7 @@ llm-rosetta ext install alcf --version 0.4.0
 llm-rosetta ext update                # every installed extension
 ```
 
-An id is looked up in this repository's latest release (`index.json`, written by the *Release* workflow: each wheel with its sha256, `Requires-Python` and what it needs from core). The index lives at `https://github.com/<owner>/llm-rosetta-ext-argonne/releases/latest/download/index.json`; give it to the installer with `--index` or `$LLM_ROSETTA_EXTENSION_INDEX`:
+An id is looked up in this repository's latest release (`index.json`, written by the *Release* workflow: each wheel with its sha256, `Requires-Python` and what it needs from core, plus what a listing shows: name, maturity, tags, shims, logo and the commit it was built from. Every field is generated from `plugin.yaml`, the vendor `provider.yaml`, the wheel and git; nothing in the index is written by hand). The index lives at `https://github.com/<owner>/llm-rosetta-ext-argonne/releases/latest/download/index.json`; give it to the installer with `--index` or `$LLM_ROSETTA_EXTENSION_INDEX`:
 
 ```bash
 export LLM_ROSETTA_EXTENSION_INDEX=https://github.com/<owner>/llm-rosetta-ext-argonne/releases/latest/download/index.json
