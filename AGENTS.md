@@ -14,9 +14,9 @@ Rules for coding agents working in this repository.
 - No third-party dependencies. The gateway may run where pip is absent, so an extension must work from a plain unzip.
 - The id is the vendor key and the import name: lowercase letters, digits and underscores (`kilo_free`, not `kilo-free`). A shim name is `<id>`, `<id>--<name>` or `<id>_<lane>--<name>` (`alcf_sophia--chat_completions` under `alcf`). It must not equal a core built-in shim name; ids are unique across extension repositories.
 
-## Manifest (draft schema)
+## Manifest
 
-`plugin.yaml` keys: `id`, `name`, `version`, `maturity` (`experimental|beta|stable`), `tags`, `requires.surface`, `requires.ir`, `provides.shims`, `provides.transports`, `external` (name, check, minimum, install_hint), `platforms`, `summary.en`, `summary.zh`.
+`plugin.yaml` keys: `id`, `name`, `version`, `maturity` (`experimental|beta|stable`), `tags`, `requires.surface`, `requires.ir`, `provides.shims`, `provides.transports`, `provides.commands` (a verb-to-summary mapping: `llm-rosetta <id> <verb>`; the folder's `commands.py` exposes `COMMANDS`), `external` (name, check, minimum, install_hint), `platforms`, `summary.en`, `summary.zh`.
 
 ## Rules that cost us before
 

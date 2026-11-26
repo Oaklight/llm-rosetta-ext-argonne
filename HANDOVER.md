@@ -28,10 +28,10 @@ python -m pytest -p no:cacheprovider packages/argo/tests packages/alcf/tests pac
 
 1. Change the version in three places and keep them equal: `packages/<id>/plugin.yaml` (`version`), `packages/<id>/pyproject.toml` (`version`) and `packages/<id>/__init__.py` (`__version__`).
 2. Run the checks in `README.md` (*Checks*). All of them must pass.
-3. Commit, then tag the commit with `<id>/vX.Y.Z` (for example `argo/v0.3.1`) and push the tag.
-4. Installers use the tag: `pip install "git+https://github.com/<owner>/llm-rosetta-ext-argonne@<id>/vX.Y.Z#subdirectory=packages/<id>"`. Update the version in the install lines of `README.md` and of the extension's own README.
+3. Merge to `main`, then run the *Release* workflow (Actions, *Run workflow*) with a tag such as `r2026.11.25`. It rebuilds every wheel from a clean copy, merges the previous release's `index.json` (so older versions stay installable) and uploads the wheels and the new `index.json` as one GitHub release.
+4. Users run `llm-rosetta ext install <id>` and `llm-rosetta ext update`; both read the latest release's `index.json` and check each wheel's sha256.
 
-The repository has no release workflow and no index builder yet. The old repositories published a shim archive to a `dist` branch and a GitHub Release from a `v<version>` tag; that mechanism is not carried over.
+`.github/workflows/release.yml` has not been run: the first release is the first test of it. It installs core from TestPyPI while 0.14.0 is unpublished (the `CORE_SPEC` and `CORE_INDEX` variables at the top of both workflows); switch them to PyPI when 0.14.0 ships. `scripts/build_index.py --relative --out <dir>` builds the same wheels and index locally, which is also how to test a change to the builder. The old repositories published a shim archive to a `dist` branch from a `v<version>` tag; that mechanism is not carried over.
 
 ## Where the live-verification notes are
 

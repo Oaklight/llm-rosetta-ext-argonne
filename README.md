@@ -2,7 +2,7 @@
 
 [llm-rosetta](https://github.com/Oaklight/llm-rosetta) extensions for Argonne National Laboratory services. Each extension is one self-contained folder under `packages/`, with its own name, version and tests.
 
-> Draft layout. Nothing here is published yet, and core loads this format only on the extensions branch (see `HANDOVER.md`, *Open items*).
+> Nothing here is published yet: no release has been cut, and core loads this format only on the extensions branch (see `HANDOVER.md`, *Open items*).
 
 ## Extensions
 
@@ -16,21 +16,20 @@ Each folder's `README.md` documents its shims, credentials and caveats. `HANDOVE
 
 ## Install
 
-Install one extension from a release tag (`<id>/v<version>`):
-
 ```bash
-pip install "git+https://github.com/<owner>/llm-rosetta-ext-argonne@argo/v0.3.0#subdirectory=packages/argo"
-pip install "git+https://github.com/<owner>/llm-rosetta-ext-argonne@alcf/v0.4.0#subdirectory=packages/alcf"
-pip install "git+https://github.com/<owner>/llm-rosetta-ext-argonne@asksage/v0.4.0#subdirectory=packages/asksage"
+llm-rosetta ext install argo          # newest compatible version, by id
+llm-rosetta ext install alcf --version 0.4.0
+llm-rosetta ext update                # every installed extension
 ```
 
-Or install a built wheel with core's installer, which needs no pip:
+An id is looked up in this repository's latest release (`index.json`, written by the *Release* workflow: each wheel with its sha256, `Requires-Python` and what it needs from core). The index lives at `https://github.com/<owner>/llm-rosetta-ext-argonne/releases/latest/download/index.json`; give it to the installer with `--index` or `$LLM_ROSETTA_EXTENSION_INDEX`:
 
 ```bash
-llm-rosetta ext install <wheel>
+export LLM_ROSETTA_EXTENSION_INDEX=https://github.com/<owner>/llm-rosetta-ext-argonne/releases/latest/download/index.json
 ```
 
-`<owner>` is a placeholder until the repository is published.
+A single wheel installs without the index (`llm-rosetta ext install <wheel-or-url> [--sha256 <digest>]`), and the standard-library installer needs no pip, so it works in the Nuitka binary. `<owner>` is a placeholder until the repository is published.
+
 
 ## Layout
 
@@ -59,6 +58,7 @@ Run from the repository root, with an llm-rosetta core that has `llm_rosetta.ext
 ```bash
 python scripts/check_layout.py
 python scripts/check_wheels.py
+python scripts/build_index.py --relative --out /tmp/dist   # the index builds and parses
 python -m llm_rosetta ext check packages/<id>
 python -m pytest packages/<id>/tests
 ```
