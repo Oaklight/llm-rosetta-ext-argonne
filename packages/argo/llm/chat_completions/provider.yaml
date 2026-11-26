@@ -1,7 +1,7 @@
 name: argo--chat_completions
 model_type: llm
 format: chat_completions
-logo: https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argo@main/assets/argo.png
+logo: https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-ext-argonne@main/packages/argo/assets/argo.svg
 
 # The panel's own sentence for an entry with no proxy set: the tunnel is what
 # makes this host reachable, and "why is my key rejected" is the question the

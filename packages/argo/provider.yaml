@@ -5,7 +5,7 @@
 # its anti-aliasing and no font or bitmap is needed here.  The URL pins the
 # commit the mark was cut in: jsDelivr's @main copy kept serving the previous
 # cut after a purge, and a mark is content, not configuration.
-logo: https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-shim-argo@c1925c14f35170aa4f839c7fb8b97de58c2d4bee/assets/argo.svg
+logo: https://cdn.jsdelivr.net/gh/Oaklight/llm-rosetta-ext-argonne@main/packages/argo/assets/argo.svg
 # A leaf inherits every field here and may override any of them.
 connection:
   # Argo authenticates with the operator's ANL account name, and this vendor's
